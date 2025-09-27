@@ -56,3 +56,24 @@ final class CircularBufferTests: XCTestCase {
     }
 }
 
+final class LineBufferScrollTests: XCTestCase {
+
+    func testScrollUpClampsWithinAvailableHistory() {
+        var buffer = LineBuffer(capacity: 8, breakchar: "\n")
+        buffer.push(chars: "one\ntwo\nthree\nfour\n")
+
+        buffer.scrollUp(span: 2, 10)
+
+        XCTAssertEqual(buffer.offset, 3)
+    }
+
+    func testScrollUpClampsToZeroWhenSpanExceedsHistory() {
+        var buffer = LineBuffer(capacity: 4, breakchar: "\n")
+        buffer.push(chars: "one\ntwo\n")
+
+        buffer.scrollUp(span: 5, 3)
+
+        XCTAssertEqual(buffer.offset, 0)
+    }
+}
+
