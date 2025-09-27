@@ -82,6 +82,8 @@ public final class LightweightTestApp {
       }
     }
 
+    inputController?.stream.resume()
+
     inputController?.makeRaw()
   }
 

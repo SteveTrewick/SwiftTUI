@@ -23,5 +23,7 @@ public final class PosixInputStream {
   public init(descriptor: Int32) {
     _ = descriptor
   }
+
+  public func resume() {}
 }
 #endif
