@@ -120,7 +120,7 @@ public final class TerminalPresenter {
 
       awaitingAltChord = false
       guard let byte = data.dropFirst().first else { return }
-      guard let scalar = UnicodeScalar(byte) else { return }
+      let scalar = UnicodeScalar(byte)
       _ = menuBarModel.activate(matchingKey: Character(scalar))
       return
     }
@@ -128,7 +128,7 @@ public final class TerminalPresenter {
     guard awaitingAltChord else { return }
     awaitingAltChord = false
     guard let byte = data.first else { return }
-    guard let scalar = UnicodeScalar(byte) else { return }
+    let scalar = UnicodeScalar(byte)
     _ = menuBarModel.activate(matchingKey: Character(scalar))
   }
 }

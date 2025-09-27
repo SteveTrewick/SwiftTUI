@@ -1,8 +1,17 @@
 
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 
+#if canImport(Trace)
 import Trace
+#endif
+#if canImport(PosixInputStream)
 import PosixInputStream
+#endif
 
 public class TerminalInputController {
   

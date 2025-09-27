@@ -28,7 +28,11 @@ let package = Package(
         // Targets can depend on other targets in this package, and on products in packages this package depends on.
         .target(
             name: "SwiftTUI",
-            dependencies: ["Trace", "PosixInputStream", "SerialPort"]),
+            dependencies: [
+                .product(name: "Trace", package: "Trace", condition: .when(platforms: [.macOS])),
+                .product(name: "PosixInputStream", package: "PosixInputStream", condition: .when(platforms: [.macOS])),
+                .product(name: "SerialPort", package: "SerialPort", condition: .when(platforms: [.macOS]))
+            ]),
         .testTarget(
             name: "SwiftTUITests",
             dependencies: ["SwiftTUI"]),
