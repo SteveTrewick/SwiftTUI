@@ -58,6 +58,23 @@ final class CircularBufferTests: XCTestCase {
 
 final class LineBufferScrollTests: XCTestCase {
 
+    func testFetchSpanImmediatelyAfterInitializationReturnsEmptyLines() {
+        var buffer = LineBuffer(capacity: 4, breakchar: "\n")
+
+        let lines = buffer.fetch(span: 2)
+
+        XCTAssertEqual(lines, ["", ""])
+    }
+
+    func testFetchTrimsTrailingBreakCharactersOnCompletedLines() {
+        var buffer = LineBuffer(capacity: 4, breakchar: "\n")
+        buffer.push(chars: "line1\nline2\npartial")
+
+        let lines = buffer.fetch(span: 3)
+
+        XCTAssertEqual(lines, ["line1", "line2", "partial"])
+    }
+
     func testScrollUpClampsWithinAvailableHistory() {
         var buffer = LineBuffer(capacity: 8, breakchar: "\n")
         buffer.push(chars: "one\ntwo\nthree\nfour\n")
