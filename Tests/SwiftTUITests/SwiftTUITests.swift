@@ -205,7 +205,46 @@ final class TerminalPresenterTests: XCTestCase {
 
         XCTAssertEqual(menuModel.focusedIndex, 1)
         XCTAssertEqual(activations, ["File", "Edit"])
+
+        presenter.handle(input: .key(.ESC))
+
+        XCTAssertNil(menuModel.focusedIndex)
+        XCTAssertEqual(activations, ["File", "Edit"])
     }
+
+    func testPresenterActivatesMenuWhenAltChordArrivesTogether() {
+        let mockOutput = MockOutputController()
+        let state = TerminalState(statusText: "Ready")
+        var activations: [String] = []
+
+        let menuModel = MenuBarModel(items: [
+            MenuBarItem(title: "File", activationKey: "f") { activations.append("File") },
+            MenuBarItem(title: "Edit", activationKey: "e") { activations.append("Edit") },
+        ])
+
+        let presenter = TerminalPresenter(
+            state: state,
+            menuBarModel: menuModel,
+            output: mockOutput,
+            initialWidth: 10,
+            initialHeight: 4
+        )
+
+        let terminalInput = TerminalInput()
+        let bytes = Data([0x1B, 0x66])
+        let translation = terminalInput.translate(bytes: bytes)
+
+        switch translation {
+        case .success(let inputs):
+            inputs.forEach { presenter.handle(input: $0) }
+        case .failure(let trace):
+            return XCTFail("Unexpected failure translating ESC+f sequence: \(trace)")
+        }
+
+        XCTAssertEqual(menuModel.focusedIndex, 0)
+        XCTAssertEqual(activations, ["File"])
+    }
+
 }
 
 final class TerminalInputPrintableSequenceTests: XCTestCase {
@@ -216,9 +255,13 @@ final class TerminalInputPrintableSequenceTests: XCTestCase {
 
         switch result {
         case .success(let inputs):
-            XCTAssertEqual(inputs.count, 1)
+            XCTAssertEqual(inputs.count, 2)
 
-            guard case let .ascii(data) = inputs.first else {
+            guard case .key(.ESC) = inputs.first else {
+                return XCTFail("Expected ESC key prefix for ESC+f sequence")
+            }
+
+            guard case let .ascii(data) = inputs.last else {
                 return XCTFail("Expected ascii input for ESC+f sequence")
             }
 
@@ -235,9 +278,13 @@ final class TerminalInputPrintableSequenceTests: XCTestCase {
 
         switch result {
         case .success(let inputs):
-            XCTAssertEqual(inputs.count, 1)
+            XCTAssertEqual(inputs.count, 2)
 
-            guard case let .ascii(data) = inputs.first else {
+            guard case .key(.ESC) = inputs.first else {
+                return XCTFail("Expected ESC key prefix for ESC+A sequence")
+            }
+
+            guard case let .ascii(data) = inputs.last else {
                 return XCTFail("Expected ascii input for ESC+A sequence")
             }
 
