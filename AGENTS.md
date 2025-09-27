@@ -7,6 +7,7 @@ RULES:
     guard let path = path else { return }
   macos 11 native
   always use swift-tools-version:5.5
+  Never, ever, commit Package.resolved. Always honour .gitignore
   you may stub out parts if needed to enable linux compilation for testing but do not break compatibility
                               
 CONTEXT:
