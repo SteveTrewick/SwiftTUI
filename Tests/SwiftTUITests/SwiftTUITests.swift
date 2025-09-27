@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 @testable import SwiftTUI
 
@@ -159,5 +160,50 @@ final class TerminalPresenterTests: XCTestCase {
         state.statusText = "Editing file.swift"
         XCTAssertEqual(mockOutput.callCount, 3)
         XCTAssertTrue(mockOutput.lastRendered?.contains(state.statusBarModel.text(maxWidth: 6)) ?? false)
+    }
+
+    func testPresenterHandlesMenuNavigation() {
+        let mockOutput = MockOutputController()
+        let state = TerminalState(statusText: "Ready")
+        var activations: [String] = []
+
+        let menuModel = MenuBarModel(items: [
+            MenuBarItem(title: "File", activationKey: "f") { activations.append("File") },
+            MenuBarItem(title: "Edit", activationKey: "e") { activations.append("Edit") },
+        ])
+
+        let presenter = TerminalPresenter(
+            state: state,
+            menuBarModel: menuModel,
+            output: mockOutput,
+            initialWidth: 10,
+            initialHeight: 4
+        )
+
+        XCTAssertNil(menuModel.focusedIndex)
+
+        presenter.handle(input: .cursor(.right))
+        XCTAssertNil(menuModel.focusedIndex)
+
+        presenter.handle(input: .key(.RETURN))
+        XCTAssertTrue(activations.isEmpty)
+
+        presenter.handle(input: .key(.ESC))
+        presenter.handle(input: .ascii(Data("f".utf8)))
+
+        XCTAssertEqual(menuModel.focusedIndex, 0)
+        XCTAssertEqual(activations, ["File"])
+
+        presenter.handle(input: .cursor(.right))
+        XCTAssertEqual(menuModel.focusedIndex, 1)
+
+        presenter.handle(input: .cursor(.left))
+        XCTAssertEqual(menuModel.focusedIndex, 0)
+
+        presenter.handle(input: .cursor(.right))
+        presenter.handle(input: .key(.RETURN))
+
+        XCTAssertEqual(menuModel.focusedIndex, 1)
+        XCTAssertEqual(activations, ["File", "Edit"])
     }
 }

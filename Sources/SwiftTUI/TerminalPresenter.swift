@@ -37,14 +37,19 @@ public final class TerminalPresenter {
   private let output: OutputDisplaying
   private let state: TerminalState
   private var statusBar: StatusBar
+  private var awaitingAltChord = false
+
+  public let menuBarModel: MenuBarModel
 
   public init(
     state: TerminalState,
+    menuBarModel: MenuBarModel = MenuBarModel(),
     output: OutputDisplaying = OutputController(),
     initialWidth: Int,
     initialHeight: Int
   ) {
     self.state = state
+    self.menuBarModel = menuBarModel
     self.output = output
     self.terminalWidth = max(0, initialWidth)
     self.terminalHeight = max(1, initialHeight)
@@ -65,5 +70,65 @@ public final class TerminalPresenter {
   private func redrawStatusBar() {
     guard terminalWidth > 0 else { return }
     output.display(statusBar.render(model: state.statusBarModel))
+  }
+
+  public func handle(input: TerminalInput.Input) {
+
+    switch input {
+
+      case .cursor(let direction):
+        guard menuBarModel.focusedIndex != nil else { return }
+        switch direction {
+          case .left:
+            menuBarModel.focusPrevious()
+          case .right:
+            menuBarModel.focusNext()
+          default:
+            break
+        }
+        awaitingAltChord = false
+
+      case .key(let control):
+        switch control {
+          case .RETURN:
+            guard menuBarModel.focusedIndex != nil else { return }
+            _ = menuBarModel.activateFocused()
+            awaitingAltChord = false
+          case .ESC:
+            awaitingAltChord = true
+          default:
+            awaitingAltChord = false
+        }
+
+      case .ascii(let data), .unicode(let data):
+        handleCharacterData(data)
+
+      default:
+        awaitingAltChord = false
+    }
+  }
+
+  private func handleCharacterData(_ data: Data) {
+
+    guard !data.isEmpty else { return }
+
+    if data.first == 0x1b { // ESC prefix, treat as ALT chord start
+      if data.count == 1 {
+        awaitingAltChord = true
+        return
+      }
+
+      awaitingAltChord = false
+      guard let byte = data.dropFirst().first else { return }
+      guard let scalar = UnicodeScalar(byte) else { return }
+      _ = menuBarModel.activate(matchingKey: Character(scalar))
+      return
+    }
+
+    guard awaitingAltChord else { return }
+    awaitingAltChord = false
+    guard let byte = data.first else { return }
+    guard let scalar = UnicodeScalar(byte) else { return }
+    _ = menuBarModel.activate(matchingKey: Character(scalar))
   }
 }
