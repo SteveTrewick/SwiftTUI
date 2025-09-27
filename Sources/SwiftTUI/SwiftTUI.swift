@@ -1,6 +1,7 @@
-public struct SwiftTUI {
-    public private(set) var text = "Hello, World!"
+import Foundation
+import OSLog
 
-    public init() {
-    }
+public func log(_ string: String) {
+  os_log(.debug, "%{public}s", "\(string)")
 }
+
