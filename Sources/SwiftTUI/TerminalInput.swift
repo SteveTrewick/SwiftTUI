@@ -171,15 +171,16 @@ public struct TerminalInput {
   // a response (or future encapsulation type) should be considered an error
   
   func translate(_ sequence: ASNISequence) -> TerminalInput.Response? {
-    
+
     switch sequence.function {
 
       case "R" :
+        guard sequence.params.count >= 2 else { return nil }
         guard let row    = Int(sequence.params[0])  else { return nil } // NB this will crash if params
         guard let column = Int(sequence.params[1])  else { return nil } // aren't there. hmm.
-        
+
         return .CUROSR(row: row, column: column)
-      
+
       default : return nil
     }
   }

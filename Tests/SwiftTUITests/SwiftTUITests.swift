@@ -207,3 +207,21 @@ final class TerminalPresenterTests: XCTestCase {
         XCTAssertEqual(activations, ["File", "Edit"])
     }
 }
+
+final class TerminalInputTranslateTests: XCTestCase {
+
+    func testTranslateHandlesTruncatedCursorResponse() {
+        let input = TerminalInput()
+        var bytes = Data([0x1b])
+        bytes.append(contentsOf: "[12R".utf8)
+
+        let result = input.translate(bytes: bytes)
+
+        switch result {
+        case .failure:
+            break
+        case .success(let inputs):
+            XCTFail("Expected failure for truncated response, got \(inputs)")
+        }
+    }
+}
