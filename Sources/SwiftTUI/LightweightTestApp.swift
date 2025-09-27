@@ -60,7 +60,7 @@ public final class LightweightTestApp {
     guard !running else { return }
     running = true
 
-    output.display(
+    output.send(
       .altBuffer,
       .clearScrollBack,
       .cls,
@@ -98,7 +98,7 @@ public final class LightweightTestApp {
 
     inputController?.unmakeRaw()
 
-    output.display(
+    output.send(
       .showCursor,
       .normBuffer
     )

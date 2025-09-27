@@ -125,10 +125,15 @@ private final class MockOutputController: OutputDisplaying {
 
     var callCount = 0
     private(set) var lastSequences: [AnsiSequence] = []
+    private(set) var lastSentSequences: [AnsiSequence] = []
 
     func display(_ sequences: AnsiSequence...) {
         callCount += 1
         lastSequences = sequences
+    }
+
+    func send(_ sequences: AnsiSequence...) {
+        lastSentSequences = sequences
     }
 
     var lastRendered: String? {

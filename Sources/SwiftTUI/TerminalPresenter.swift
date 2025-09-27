@@ -1,7 +1,18 @@
 import Foundation
 
+/// Abstraction used by ``TerminalPresenter`` so unit tests can provide mocks
+/// rather than writing directly to ``stdout``. Conforming types should proxy to
+/// ``OutputController``'s implementations so the presenter can either send
+/// sequences that query terminal state or display rendered UI elements.
 public protocol OutputDisplaying {
+  /// Display the provided sequences, updating the cursor position afterwards
+  /// to match ``OutputController/display(_:)-5k8a4``.
   func display(_ sequences: AnsiSequence...)
+
+  /// Send raw sequences without cursor tracking, mirroring
+  /// ``OutputController/send(_:)-5msk`` for cases where the presenter needs to
+  /// issue commands and inspect terminal responses.
+  func send(_ sequences: AnsiSequence...)
 }
 
 extension OutputController: OutputDisplaying {}
@@ -34,6 +45,8 @@ public final class TerminalPresenter {
 
   private var terminalWidth: Int
   private var terminalHeight: Int
+  // Keep protocol-based abstraction to allow tests to intercept output without
+  // writing to the real terminal.
   private let output: OutputDisplaying
   private let state: TerminalState
   private var statusBar: StatusBar
