@@ -208,6 +208,47 @@ final class TerminalPresenterTests: XCTestCase {
     }
 }
 
+final class TerminalInputPrintableSequenceTests: XCTestCase {
+
+    func testTranslateEscFollowedByLowercaseLetterProducesAsciiInput() {
+        let terminalInput = TerminalInput()
+        let result = terminalInput.translate(bytes: Data([0x1B, 0x66]))
+
+        switch result {
+        case .success(let inputs):
+            XCTAssertEqual(inputs.count, 1)
+
+            guard case let .ascii(data) = inputs.first else {
+                return XCTFail("Expected ascii input for ESC+f sequence")
+            }
+
+            XCTAssertEqual(data, Data([0x66]))
+
+        case .failure(let trace):
+            XCTFail("Unexpected failure for ESC+f sequence: \(trace)")
+        }
+    }
+
+    func testTranslateEscFollowedByUppercaseLetterProducesAsciiInput() {
+        let terminalInput = TerminalInput()
+        let result = terminalInput.translate(bytes: Data([0x1B, 0x41]))
+
+        switch result {
+        case .success(let inputs):
+            XCTAssertEqual(inputs.count, 1)
+
+            guard case let .ascii(data) = inputs.first else {
+                return XCTFail("Expected ascii input for ESC+A sequence")
+            }
+
+            XCTAssertEqual(data, Data([0x41]))
+
+        case .failure(let trace):
+            XCTFail("Unexpected failure for ESC+A sequence: \(trace)")
+        }
+    }
+}
+
 final class TerminalInputTranslateTests: XCTestCase {
 
     func testTranslateHandlesTruncatedCursorResponse() {

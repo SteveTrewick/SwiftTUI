@@ -267,7 +267,24 @@ public struct TerminalInput {
               if let response = translate( decompose(sequence) ) { inputs += [.response(response)] }
               else                                               { fallthrough                     }
             
-            default : return .failure(Trace(self, tag: "unhandled sequence \(errordesc(bytes))") )
+            default :
+              if !sequence.hasPrefix("["),
+                 let data = sequence.data(using: .utf8),
+                 !sequence.isEmpty {
+                let containsControl = sequence.rangeOfCharacter(from: CharacterSet.controlCharacters) != nil
+
+                if !containsControl {
+                  if data.count == 1, let first = data.first, first < 0x80 {
+                    inputs += [ .ascii(data) ]
+                  } else {
+                    inputs += [ .unicode(data) ]
+                  }
+
+                  continue
+                }
+              }
+
+              return .failure(Trace(self, tag: "unhandled sequence \(errordesc(bytes))") )
           }
         }
       
