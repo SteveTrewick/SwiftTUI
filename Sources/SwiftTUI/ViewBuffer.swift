@@ -166,11 +166,19 @@ public struct LineBuffer {
     log("spantop \(spantop)")
     
     for i in 0..<(span) {
-      
+
       let pos = (spantop + i) %% buffer.capacity
-      
+
       if pos == buffer.head { lines.append( currentline )   }
-      else                  { lines.append( String(buffer[ pos ]!.dropLast())) }  // still got an explodey nil
+      else {
+        if let stored = buffer[pos] {
+          var line = stored
+          if line.last == breakchar { line.removeLast() }
+          lines.append(line)
+        } else {
+          lines.append("")
+        }
+      }
     }                       // NB the last char on all non curremt lines == newline
                             //    which will scroll when we hit the bottom, bad.
     return lines
