@@ -34,19 +34,19 @@ public struct CircularBuffer<T>  {
     }
 
     public mutating func put(_ element: T) {
-      
+
+      if isFull {                    // buffer is full and now overwriting its own ass
+        tail = (tail + 1) % capacity // discard old values...
+      } else {
+        filled = min(filled + 1, capacity)
+      }
+
       elements[head] = element
       head = (head + 1) % capacity
-      
-      if head == tail {              // buffer is full and now overwriting its own ass
-        tail = (tail + 1) % capacity // if we cared about that, we should bounce this
-      }                              // but I actually want it to discard old values...
-      
-      filled = min((filled + 1),  capacity)
     }
 
     // ...so instead we'll put a check, for completeness sake.
-    public var isFull : Bool { return head == tail }
+    public var isFull : Bool { return filled == capacity }
 
 
 
@@ -55,7 +55,9 @@ public struct CircularBuffer<T>  {
 
     public mutating func get() -> T {
       defer {
+        elements[tail] = nil
         tail = (tail + 1) % capacity
+        filled = max(filled - 1, 0)
       }
       return elements[tail]! // NB this here is fatal, your pointers are wrong.
     }
