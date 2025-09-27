@@ -38,6 +38,7 @@ public final class TerminalPresenter {
   private let state: TerminalState
   private var statusBar: StatusBar
   private var awaitingAltChord = false
+  private var lastInputWasEscape = false
 
   public let menuBarModel: MenuBarModel
 
@@ -87,6 +88,7 @@ public final class TerminalPresenter {
             break
         }
         awaitingAltChord = false
+        lastInputWasEscape = false
 
       case .key(let control):
         switch control {
@@ -94,10 +96,19 @@ public final class TerminalPresenter {
             guard menuBarModel.focusedIndex != nil else { return }
             _ = menuBarModel.activateFocused()
             awaitingAltChord = false
+            lastInputWasEscape = false
           case .ESC:
-            awaitingAltChord = true
+            let hadFocus = menuBarModel.focusedIndex != nil
+            if hadFocus {
+              menuBarModel.clearFocus()
+              awaitingAltChord = false
+            } else {
+              awaitingAltChord = true
+            }
+            lastInputWasEscape = true
           default:
             awaitingAltChord = false
+            lastInputWasEscape = false
         }
 
       case .ascii(let data), .unicode(let data):
@@ -105,6 +116,7 @@ public final class TerminalPresenter {
 
       default:
         awaitingAltChord = false
+        lastInputWasEscape = false
     }
   }
 
@@ -115,18 +127,26 @@ public final class TerminalPresenter {
     if data.first == 0x1b { // ESC prefix, treat as ALT chord start
       if data.count == 1 {
         awaitingAltChord = true
+        lastInputWasEscape = true
         return
       }
 
       awaitingAltChord = false
+      lastInputWasEscape = false
       guard let byte = data.dropFirst().first else { return }
       let scalar = UnicodeScalar(byte)
       _ = menuBarModel.activate(matchingKey: Character(scalar))
       return
     }
 
-    guard awaitingAltChord else { return }
+    let chordArmed = awaitingAltChord || lastInputWasEscape
+    guard chordArmed else {
+      lastInputWasEscape = false
+      return
+    }
+
     awaitingAltChord = false
+    lastInputWasEscape = false
     guard let byte = data.first else { return }
     let scalar = UnicodeScalar(byte)
     _ = menuBarModel.activate(matchingKey: Character(scalar))

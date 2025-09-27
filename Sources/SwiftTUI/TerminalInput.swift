@@ -274,6 +274,8 @@ public struct TerminalInput {
                 let containsControl = sequence.rangeOfCharacter(from: CharacterSet.controlCharacters) != nil
 
                 if !containsControl {
+                  inputs += [ .key(.ESC) ]
+
                   if data.count == 1, let first = data.first, first < 0x80 {
                     inputs += [ .ascii(data) ]
                   } else {
