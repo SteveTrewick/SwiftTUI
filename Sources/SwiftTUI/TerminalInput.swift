@@ -1,7 +1,9 @@
 
 
 import Foundation
+#if canImport(Trace)
 import Trace
+#endif
 
 /*
   Handle the various things that the macOS (and this is NOT portable)
