@@ -148,7 +148,8 @@ public struct LineBuffer {
   // we need to be checking the spans here, or in the calling code
   public mutating func scrollUp (span: Int, _ count : Int = 1) {
     let maxoffset = (buffer.filled + 1) - span
-    offset = min(offset + count, maxoffset)
+    // The scroll offset cannot exceed the number of lines available nor dip below zero.
+    offset = min(offset + count, max(0, maxoffset))
   }
   public mutating func scrollDown ( _ count: Int = 1) {
     offset = max(0, offset - count)
