@@ -11,3 +11,6 @@ public func log(_ string: String) {
 #endif
 }
 
+public protocol Renderable {
+  func render ( in size: winsize ) -> [AnsiSequence]?
+}
