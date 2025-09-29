@@ -215,15 +215,16 @@ public struct TerminalInput {
   }
 
 
-  func processMeta(_ sequence: String, inputs: inout [TerminalInput.Input], originalBytes: Data) -> Result<Bool, Trace> {
-    // When we don't recognise the escape sequence as one of the structured
-    // control sequences above we fall back to treating it as a literal "meta"
-    // key press. macOS sends ESC-prefixed printable characters for Option-key
-    // combinations, so we split the escape off and treat the remainder as
-    // normal text.
-    guard let data = sequence.data(using: .utf8) else {
-      return .failure(Trace(self, tag: "unhandled sequence \(errordesc(originalBytes))"))
-    }
+  
+  // When we don't recognise the escape sequence as one of the structured
+  // control sequences above we fall back to treating it as a literal "meta"
+  // key press. macOS sends ESC-prefixed printable characters for Option-key
+  // combinations, so we split the escape off and treat the remainder as
+  // normal text.
+  
+  func processMeta ( sequence: String, data: Data ) -> [TerminalInput.Input] {
+
+    var inputs : [TerminalInput.Input] = []
 
     // CharacterSet.controlCharacters matches ASCII control bytes (0x00-0x1f
     // plus DEL). If the remainder contains any of those then it is likely part
@@ -241,16 +242,20 @@ public struct TerminalInput {
 
       if data.count == 1, let first = data.first, first < 0x80 {
         inputs += [ .ascii(data) ]
-      } else {
+      }
+      else {
+        // Hmmm
         inputs += [ .unicode(data) ]
       }
 
-      return .success(true)
+      
     }
-
-    return .success(false)
+    
+    return inputs
   }
 
+  
+  
   
   //MARK: Public API
   
@@ -307,14 +312,18 @@ public struct TerminalInput {
               else                                               { fallthrough                     }
             
             default :
-              switch processMeta(sequence, inputs: &inputs, originalBytes: bytes) {
-                case .failure(let trace):
-                  return .failure(trace)
-                case .success(let handled):
-                  if handled { continue }
-              }
               
-
+              guard let data = sequence.data(using: .utf8) else {
+                return .failure(Trace(self, tag: "unhandled non utf8 sequence \(errordesc(bytes))"))
+              }
+            
+              let meta = processMeta ( sequence: sequence, data: data )
+              if meta.isEmpty {
+                return .failure(Trace(self, tag: "unhandled control sequence \(errordesc(bytes))"))
+              }
+              else {
+                inputs += meta
+              }
               
           }
         }
