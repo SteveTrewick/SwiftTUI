@@ -22,7 +22,11 @@ public class TerminalInputController {
   // TODO: unpublic this please
   public let stream : PosixInputStream
   
-  public var handler : ( (Result<[TerminalInput.Input], Trace>) -> Void  )? = nil
+  public var handler : ( (Result<Data, Trace>) -> Void  )? {
+    didSet {
+      stream.handler = handler
+    }
+  }
   
   
   public init() {
@@ -33,17 +37,17 @@ public class TerminalInputController {
     
     termios_curr   = termios_orig
     stream         = PosixInputStream(descriptor: STDIN_FILENO)
-    stream.handler = self.contextualise
+    //stream.handler = self.contextualise
   }
   
   
   
-  func contextualise (result: Result<Data, Trace> ) {
-    switch result {
-      case .failure(let trace) : handler? ( .failure(trace) )
-      case .success(let bytes) : handler? ( input.translate(bytes: bytes) )
-    }
-  }
+//  func contextualise (result: Result<Data, Trace> ) {
+//    switch result {
+//      case .failure(let trace) : handler? ( .failure(trace) )
+//      case .success(let bytes) : handler? ( .success(bytes) )
+//    }
+//  }
   
   
   public func makeRaw() {

@@ -151,7 +151,7 @@ public struct TerminalInput {
     "[D" : .left
   ]
   
-  
+  public init() {}
   // conversion funcs that retun nil if the input isnt one of the tables
   
   func translate(_ u8: UInt8) -> TerminalInput.ControlKey? {
@@ -215,6 +215,8 @@ public struct TerminalInput {
   }
   
   
+  //MARK: Public API
+  
   // OK, here we go go.
   // take some bytes from STDIN and basically add contextual wrapping to them
   // we return either a Key, a Response or some ascii or unicode bytes
@@ -268,22 +270,24 @@ public struct TerminalInput {
               else                                               { fallthrough                     }
             
             default :
-              if !sequence.hasPrefix("["),
-                 let data = sequence.data(using: .utf8),
-                 !sequence.isEmpty {
-                let containsControl = sequence.rangeOfCharacter(from: CharacterSet.controlCharacters) != nil
+              //TODO: add explanatory notes under the following TODOs
+              if let data = sequence.data(using: .utf8) {
+                  
+                  // TODO: why is this here, what control characters are checked and why
+                  let containsControl = sequence.rangeOfCharacter(from: CharacterSet.controlCharacters) != nil
 
-                if !containsControl {
-                  inputs += [ .key(.ESC) ]
+                    //TODO: why are we not just checking for ESC?
+                    if !containsControl {
+                      inputs += [ .key(.ESC) ]
 
-                  if data.count == 1, let first = data.first, first < 0x80 {
-                    inputs += [ .ascii(data) ]
-                  } else {
-                    inputs += [ .unicode(data) ]
-                  }
+                      if data.count == 1, let first = data.first, first < 0x80 {
+                        inputs += [ .ascii(data) ]
+                      } else {
+                        inputs += [ .unicode(data) ]
+                      }
 
-                  continue
-                }
+                      continue
+                    }
               }
 
               return .failure(Trace(self, tag: "unhandled sequence \(errordesc(bytes))") )
