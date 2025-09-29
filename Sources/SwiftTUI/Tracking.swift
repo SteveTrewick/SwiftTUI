@@ -1,45 +1,88 @@
 import Foundation
 
-public final class WindowSizeTracking {
+public final class TerminalApp {
 
-  private let windowChanges: WindowChanges
-  private let statusBar: StatusBar
-
-  public init(
-    windowChanges: WindowChanges = WindowChanges(),
-    output: OutputController = OutputController(),
-    foreground: ANSIForecolor = .black,
-    background: ANSIBackcolor = .bgWhite
-  ) {
-    self.windowChanges = windowChanges
-    self.statusBar = StatusBar(
-      output: output,
-      foreground: foreground,
-      background: background
+  private let window    : WindowChanges
+  private let statusBar : StatusBar
+  private let output    : OutputController
+  private let input     : TerminalInputController
+  
+  
+  public init (
+    window: WindowChanges           = WindowChanges(),
+    output: OutputController        = OutputController(),
+    input : TerminalInputController = TerminalInputController()
+  )
+  {
+    self.window    = window
+    self.output    = output
+    self.input     = input
+    self.statusBar = StatusBar( text: "", output: output )
+    
+    // hook the window change handler, if the window size changes, we need to redraw
+    // basically everything
+    self.window.onChange = { [self] size in
+      self.render (everything: true)
+    }
+    
+    // capture all input
+    input.makeRaw()
+    
+    // clear and initialise the screen
+    output.send (
+      .altBuffer,
+      .clearScrollBack,
+      .cls,
+      .moveCursor(row: 1, col: 1)
     )
+    
+  }
 
-    self.windowChanges.onChange = { [weak self] size in
-      self?.renderStatus(for: size)
+  
+  // we need to track which things we change and why and whether that requires
+  // us to redraw the whole lot, or just parts.
+  // for now, just do this.
+  
+  
+  func render ( everything: Bool = true ) {
+    
+    if everything {
+      
+      output.send(
+        .cls
+      )
+      
+      output.render (
+        elements: [ updateStatusBar (for: window.size) ],
+        in      : window.size
+      )
+    
     }
   }
+  
+  
+  private func updateStatusBar(for size: winsize) -> Renderable {
+    
+    let columns     = Int(size.ws_col)
+    let rows        = Int(size.ws_row)
+    statusBar.text  = "Window size: \(columns) x \(rows)"
+    
+    return statusBar
+  }
 
+  
+  
   public func start() {
-    renderStatus(for: windowChanges.size)
-    windowChanges.track()
+    render ( everything: true )
+    window.track()
   }
 
+  
   public func stop() {
-    windowChanges.untrack()
+    window.untrack()
   }
-
-  private func renderStatus(for size: winsize) {
-    let columns = Int(size.ws_col)
-    let rows = Int(size.ws_row)
-    let text = "Window size: \(columns) x \(rows)"
-    statusBar.draw(text: text, in: size)
-  }
-
+  
   deinit {
-    windowChanges.untrack()
+    window.untrack()
   }
 }
