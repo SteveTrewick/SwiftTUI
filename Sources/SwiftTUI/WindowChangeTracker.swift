@@ -7,11 +7,13 @@ import Foundation
 
 public class WindowChangeTracker {
   
-  var size     = winsize()
-  let queue   : DispatchQueue
-  let source  : DispatchSourceSignal
   
+  private let queue   : DispatchQueue
+  private let source  : DispatchSourceSignal
+  
+  public var size     = winsize()
   public var onChange : ( (winsize) -> Void )? = nil
+  
   
   public init() {
     
@@ -26,6 +28,7 @@ public class WindowChangeTracker {
     source.setEventHandler { [self] in
       var newsize = winsize()
       if ioctl(STDOUT_FILENO, TIOCGWINSZ, &newsize) == 0 {
+        size = newsize
         onChange?(newsize)
       }
     }
