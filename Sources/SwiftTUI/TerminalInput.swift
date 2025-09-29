@@ -302,17 +302,21 @@ public struct TerminalInput {
             // do, so we bail.
               
             case "[" :
-              
+
               if let cursor   = translate(sequence) {
                 inputs += [ .cursor(cursor) ]
                 break
               }
-              
-              if let response = translate( decompose(sequence) ) { inputs += [.response(response)] }
-              else                                               { fallthrough                     }
-            
+
+              if let response = translate( decompose(sequence) ) {
+                inputs += [ .response(response) ]
+                break
+              }
+
+              return .failure(Trace(self, tag: "unhandled control sequence \(errordesc(bytes))"))
+
             default :
-              
+
               guard let data = sequence.data(using: .utf8) else {
                 return .failure(Trace(self, tag: "unhandled non utf8 sequence \(errordesc(bytes))"))
               }
