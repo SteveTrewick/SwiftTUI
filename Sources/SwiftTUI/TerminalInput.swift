@@ -213,7 +213,44 @@ public struct TerminalInput {
   func errordesc(_ bytes: Data) -> String {
     String(describing: String(data: bytes, encoding: .utf8))
   }
-  
+
+
+  func processMeta(_ sequence: String, inputs: inout [TerminalInput.Input], originalBytes: Data) -> Result<Bool, Trace> {
+    // When we don't recognise the escape sequence as one of the structured
+    // control sequences above we fall back to treating it as a literal "meta"
+    // key press. macOS sends ESC-prefixed printable characters for Option-key
+    // combinations, so we split the escape off and treat the remainder as
+    // normal text.
+    guard let data = sequence.data(using: .utf8) else {
+      return .failure(Trace(self, tag: "unhandled sequence \(errordesc(originalBytes))"))
+    }
+
+    // CharacterSet.controlCharacters matches ASCII control bytes (0x00-0x1f
+    // plus DEL). If the remainder contains any of those then it is likely part
+    // of an ANSI control sequence we don't understand, so we shouldn't treat it
+    // as plain text.
+    let containsControl = sequence.rangeOfCharacter(from: CharacterSet.controlCharacters) != nil
+
+    // The split above already removed the leading ESC. Any printable characters
+    // that remain are part of the meta-key payload and should be delivered
+    // alongside the ESC key. Checking for the general control-character set
+    // instead of just another ESC prevents us from mis-classifying multi-byte
+    // control sequences as regular text.
+    if !containsControl {
+      inputs += [ .key(.ESC) ]
+
+      if data.count == 1, let first = data.first, first < 0x80 {
+        inputs += [ .ascii(data) ]
+      } else {
+        inputs += [ .unicode(data) ]
+      }
+
+      return .success(true)
+    }
+
+    return .success(false)
+  }
+
   
   //MARK: Public API
   
@@ -270,38 +307,12 @@ public struct TerminalInput {
               else                                               { fallthrough                     }
             
             default :
-              // When we don't recognise the escape sequence as one of the
-              // structured control sequences above we fall back to treating
-              // it as a literal "meta" key press. macOS sends ESC-prefixed
-              // printable characters for Option-key combinations, so we split
-              // the escape off and treat the remainder as normal text.
-              guard let data = sequence.data(using: .utf8) else { return .failure(Trace(self, tag: "unhandled sequence \(errordesc(bytes))") ) }
-
-                  // CharacterSet.controlCharacters matches ASCII control
-                  // bytes (0x00-0x1f plus DEL). If the remainder contains any
-                  // of those then it is likely part of an ANSI control
-                  // sequence we don't understand, so we shouldn't treat it as
-                  // plain text.
-                  let containsControl = sequence.rangeOfCharacter(from: CharacterSet.controlCharacters) != nil
-
-                    // The split above already removed the leading ESC. Any
-                    // printable characters that remain are part of the
-                    // meta-key payload and should be delivered alongside the
-                    // ESC key. Checking for the general control-character set
-                    // instead of just another ESC prevents us from
-                    // mis-classifying multi-byte control sequences as regular
-                    // text.
-                    if !containsControl {
-                      inputs += [ .key(.ESC) ]
-
-                      if data.count == 1, let first = data.first, first < 0x80 {
-                        inputs += [ .ascii(data) ]
-                      } else {
-                        inputs += [ .unicode(data) ]
-                      }
-
-                      continue
-                    }
+              switch processMeta(sequence, inputs: &inputs, originalBytes: bytes) {
+                case .failure(let trace):
+                  return .failure(trace)
+                case .success(let handled):
+                  if handled { continue }
+              }
               
 
               
