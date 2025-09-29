@@ -20,6 +20,7 @@ public final class TerminalApp {
   private let output    : OutputController
   private let input     : TerminalInputController
   private var cursor    : Cursor
+  private var awaitingMenuSelection: Bool
   
   public init (
     window: WindowChanges           = WindowChanges(),
@@ -27,18 +28,19 @@ public final class TerminalApp {
     input : TerminalInputController = TerminalInputController()
   )
   {
-    self.cursor    = Cursor(row: 0, col: 0)
-    self.window    = window
-    self.output    = output
-    self.input     = input
-    self.statusBar = StatusBar( text: "", output: output )
-    self.menuBar   = MenuBar(
+    self.cursor                  = Cursor(row: 0, col: 0)
+    self.window                  = window
+    self.output                  = output
+    self.input                   = input
+    self.statusBar               = StatusBar( text: "", output: output )
+    self.menuBar                 = MenuBar(
       items: [
         MenuItem(name: "Foo"),
         MenuItem(name: "Bar"),
         MenuItem(name: "Baz"),
       ]
     )
+    self.awaitingMenuSelection   = false
     
     // hook the window change handler, if the window size changes, we need to redraw
     // basically everything
@@ -71,14 +73,30 @@ public final class TerminalApp {
   // process stdin
   func process (_ inputs: [TerminalInput.Input] ) {
     
-    //TODO: catch alt+key combo, convert the key to a Character and locate a MenuBar via MenuBarlocateMenuItem then call performAction on the item
+    // Catch option-key menu shortcuts (sent as ESC-prefixed characters) and
+    // trigger the corresponding menu item action.
     
     for input in inputs {
       switch input {
-        case .response( let response ) : process ( response )
-        default                        : break
+
+        case .key(let key) :
+          awaitingMenuSelection = (key == .ESC)
+
+        case .ascii(let data) :
+          handleMenuSelectionPayload(data)
+
+        case .unicode(let data) :
+          handleMenuSelectionPayload(data)
+
+        case .response( let response ) :
+          process ( response )
+
+        default :
+          break
       }
     }
+
+    awaitingMenuSelection = false
   }
   
   // we probably nned to track the cursor position don't we?
@@ -112,12 +130,40 @@ public final class TerminalApp {
   
   
   private func updateStatusBar(for size: winsize) -> Renderable {
-    
+
     let columns     = Int(size.ws_col)
     let rows        = Int(size.ws_row)
     statusBar.text  = "Window size: \(columns) x \(rows)"
-    
+
     return statusBar
+  }
+
+
+  private func decodeSingleCharacter(from data: Data) -> Character? {
+    guard !data.isEmpty else { return nil }
+
+    if data.count == 1 {
+      return Character(UnicodeScalar(data[0]))
+    }
+
+    guard let string = String(data: data, encoding: .utf8) else { return nil }
+    guard string.count == 1, let character = string.first else { return nil }
+
+    return character
+  }
+
+
+  private func handleMenuSelectionPayload(_ data: Data) {
+    guard awaitingMenuSelection else { return }
+    awaitingMenuSelection = false
+    guard let character = decodeSingleCharacter(from: data) else { return }
+    activateMenuItem(for: character)
+  }
+
+
+  private func activateMenuItem(for character: Character) {
+    guard let item = menuBar.locateMenuItem(select: character) else { return }
+    item.performAction()
   }
 
   
