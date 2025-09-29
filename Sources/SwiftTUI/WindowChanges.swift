@@ -5,7 +5,7 @@
 
 import Foundation
 
-public class WindowChangeTracker {
+public class WindowChanges {
   
   
   private let queue   : DispatchQueue
