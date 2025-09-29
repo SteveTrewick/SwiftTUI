@@ -275,7 +275,7 @@ public struct TerminalInput {
               // it as a literal "meta" key press. macOS sends ESC-prefixed
               // printable characters for Option-key combinations, so we split
               // the escape off and treat the remainder as normal text.
-              if let data = sequence.data(using: .utf8) {
+              guard let data = sequence.data(using: .utf8) else { return .failure(Trace(self, tag: "unhandled sequence \(errordesc(bytes))") ) }
 
                   // CharacterSet.controlCharacters matches ASCII control
                   // bytes (0x00-0x1f plus DEL). If the remainder contains any
@@ -302,9 +302,9 @@ public struct TerminalInput {
 
                       continue
                     }
-              }
+              
 
-              return .failure(Trace(self, tag: "unhandled sequence \(errordesc(bytes))") )
+              
           }
         }
       
