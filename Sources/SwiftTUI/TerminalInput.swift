@@ -270,13 +270,27 @@ public struct TerminalInput {
               else                                               { fallthrough                     }
             
             default :
-              //TODO: add explanatory notes under the following TODOs
+              // When we don't recognise the escape sequence as one of the
+              // structured control sequences above we fall back to treating
+              // it as a literal "meta" key press. macOS sends ESC-prefixed
+              // printable characters for Option-key combinations, so we split
+              // the escape off and treat the remainder as normal text.
               if let data = sequence.data(using: .utf8) {
-                  
-                  // TODO: why is this here, what control characters are checked and why
+
+                  // CharacterSet.controlCharacters matches ASCII control
+                  // bytes (0x00-0x1f plus DEL). If the remainder contains any
+                  // of those then it is likely part of an ANSI control
+                  // sequence we don't understand, so we shouldn't treat it as
+                  // plain text.
                   let containsControl = sequence.rangeOfCharacter(from: CharacterSet.controlCharacters) != nil
 
-                    //TODO: why are we not just checking for ESC?
+                    // The split above already removed the leading ESC. Any
+                    // printable characters that remain are part of the
+                    // meta-key payload and should be delivered alongside the
+                    // ESC key. Checking for the general control-character set
+                    // instead of just another ESC prevents us from
+                    // mis-classifying multi-byte control sequences as regular
+                    // text.
                     if !containsControl {
                       inputs += [ .key(.ESC) ]
 
