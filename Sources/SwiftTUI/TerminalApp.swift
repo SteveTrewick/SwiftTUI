@@ -16,6 +16,7 @@ public final class TerminalApp {
   
   private let window    : WindowChanges
   private let statusBar : StatusBar
+  private let menuBar   : MenuBar
   private let output    : OutputController
   private let input     : TerminalInputController
   private var cursor    : Cursor
@@ -31,6 +32,13 @@ public final class TerminalApp {
     self.output    = output
     self.input     = input
     self.statusBar = StatusBar( text: "", output: output )
+    self.menuBar   = MenuBar(
+      items: [
+        MenuItem(name: "Foo"),
+        MenuItem(name: "Bar"),
+        MenuItem(name: "Baz"),
+      ]
+    )
     
     // hook the window change handler, if the window size changes, we need to redraw
     // basically everything
@@ -92,7 +100,7 @@ public final class TerminalApp {
       )
       
       output.render (
-        elements: [ updateStatusBar (for: window.size) ],
+        elements: [ menuBar, updateStatusBar (for: window.size) ],
         in      : window.size
       )
     
