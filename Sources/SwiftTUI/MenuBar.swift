@@ -9,6 +9,7 @@ public final class MenuItem : Renderable {
   private var originRow: Int
   private var originCol: Int
 
+  
 
   public init (
     name      : String,
@@ -20,9 +21,18 @@ public final class MenuItem : Renderable {
     self.background = background
     self.originRow  = 1
     self.originCol  = 1
+    
   }
 
-
+  func responds ( to select: Character ) -> Bool {
+    if let char = name.first?.uppercased(), char == select.uppercased() { return true  }
+    else                                                                { return false }
+  }
+  
+  func performAction() {
+    log(name)
+  }
+  
   func setOrigin ( row: Int, col: Int ) {
     originRow = row
     originCol = col
@@ -105,6 +115,12 @@ public final class MenuBar : Renderable {
     self.background = background
   }
 
+  func locateMenuItem ( select: Character ) -> MenuItem? {
+    for item in items {
+      if item.responds(to: select) { return item }
+    }
+    return nil
+  }
 
   public func render ( in size: winsize ) -> [AnsiSequence]? {
 

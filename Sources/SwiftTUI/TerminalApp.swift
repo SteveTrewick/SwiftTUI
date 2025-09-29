@@ -70,6 +70,9 @@ public final class TerminalApp {
 
   // process stdin
   func process (_ inputs: [TerminalInput.Input] ) {
+    
+    //TODO: catch alt+key combo, convert the key to a Character and locate a MenuBar via MenuBarlocateMenuItem then call performAction on the item
+    
     for input in inputs {
       switch input {
         case .response( let response ) : process ( response )
