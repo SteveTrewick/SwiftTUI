@@ -21,13 +21,13 @@ public class WindowChanges {
     self.source = DispatchSource.makeSignalSource(signal: SIGWINCH, queue: queue)
     
     // get initial window frame
-    if ioctl(STDOUT_FILENO, TIOCGWINSZ, &size) != 0 {
+    if ioctl(STDOUT_FILENO, UInt(TIOCGWINSZ), &size) != 0 {
       log("IOCTL fail, could not dermine initial windows size")
     }
     
     source.setEventHandler { [self] in
       var newsize = winsize()
-      if ioctl(STDOUT_FILENO, TIOCGWINSZ, &newsize) == 0 {
+      if ioctl(STDOUT_FILENO, UInt(TIOCGWINSZ), &newsize) == 0 {
         size = newsize
         onChange?(newsize)
       }
