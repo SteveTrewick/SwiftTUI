@@ -13,48 +13,75 @@ struct TermSize {
 }
 
 
-public struct Box {
-  
-  let position: TermCoord
-  let size    : TermSize
+public struct Box : Renderable {
 
-  public init (row: Int, col: Int, width: Int, height: Int) {
-    position = TermCoord(row  : row,   col   : col   )
-    size     = TermSize (width: width, height: height)
+  let position  : TermCoord
+  let extent    : TermSize
+  let foreground: ANSIForecolor
+  let background: ANSIBackcolor
+
+  public init (
+    row       : Int,
+    col       : Int,
+    width     : Int,
+    height    : Int,
+    foreground: ANSIForecolor = .white,
+    background: ANSIBackcolor = .bgBlue
+  ) {
+    position   = TermCoord(row: row, col: col)
+    extent     = TermSize(width: width, height: height)
+    self.foreground = foreground
+    self.background = background
   }
-  
-  // there is probably a better way to do this.
-  // but this is kinda fun
-  public func render(foreground: ANSIForecolor, background: ANSIBackcolor) -> AnsiSequence {
-    .flatten (
-      [
-        .moveCursor(row: position.row, col: position.col),
+
+  public func render ( in terminalSize: winsize ) -> [AnsiSequence]? {
+
+    let rows    = Int(terminalSize.ws_row)
+    let columns = Int(terminalSize.ws_col)
+
+    guard extent.width  >= 2 else { return nil }
+    guard extent.height >= 2 else { return nil }
+
+    let top    = position.row
+    let left   = position.col
+    let bottom = top  + extent.height - 1
+    let right  = left + extent.width  - 1
+
+    guard top    >= 1 else { return nil }
+    guard left   >= 1 else { return nil }
+    guard bottom <= rows else { return nil }
+    guard right  <= columns else { return nil }
+
+    return [
+      .moveCursor(row: top, col: left),
+        .backcolor (background),
+        .forecolor (foreground),
+        .box   (.tlc),
+        .box   (.horiz(extent.width - 2)),
+        .box   (.trc),
+        .resetcolor,
+
+      .repeatRow(
+        col: left,
+        row: top + 1,
+        count: extent.height - 2,
+        [
           .backcolor (background),
           .forecolor (foreground),
-          .box   (.tlc),
-          .box   (.horiz(size.width - 2) ),
-          .box   (.trc),
+          .box   (.vert),
+          .repeatChars(" ", count: extent.width - 2),
+          .box   (.vert),
           .resetcolor,
-        
-        .repeatRow(col: position.col, row: position.row + 1, count: size.height - 2,
-            [
-              .backcolor       (background),
-              .forecolor       (foreground),
-              .box         (.vert),
-              .repeatChars (" ", count: size.width - 2),
-              .box         (.vert),
-              .resetcolor,
-            ]
-        ),
-        
-        .moveCursor(row: position.row + size.height - 1, col: position.col),
-          .backcolor (background),
-          .forecolor (foreground),
-          .box   (.blc),
-          .box   (.horiz(size.width - 2) ),
-          .box   (.brc),
-          .resetcolor,
-      ]
-    )
+        ]
+      ),
+
+      .moveCursor(row: bottom, col: left),
+        .backcolor (background),
+        .forecolor (foreground),
+        .box   (.blc),
+        .box   (.horiz(extent.width - 2)),
+        .box   (.brc),
+        .resetcolor,
+    ]
   }
 }
