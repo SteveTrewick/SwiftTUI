@@ -2,29 +2,21 @@ import Foundation
 
 public final class MenuItem : Renderable {
 
-  public var name      : String
-  public var foreground: ANSIForecolor
-  public var background: ANSIBackcolor
-  public var action    : MenuAction
-  public var context   : MenuActionContext
+  public var name   : String
+  public var style  : ElementStyle
+  public var action : MenuAction
+  public var context: MenuActionContext
   
   private var originRow: Int
   private var originCol: Int
   
   
 
-  public init (
-    name      : String,
-    context   : MenuActionContext,
-    action    : MenuAction,
-    foreground: ANSIForecolor = .black,
-    background: ANSIBackcolor = .bgWhite
-  ) {
+  public init ( name: String, style: ElementStyle, context: MenuActionContext, action: MenuAction ) {
     self.name       = name
     self.context    = context
     self.action     = action
-    self.foreground = foreground
-    self.background = background
+    self.style      = style
     self.originRow  = 1
     self.originCol  = 1
     
@@ -75,9 +67,9 @@ public final class MenuItem : Renderable {
     // attributes that define this item's visual style. These must precede any
     // text so the glyphs inherit the intended foreground/background pairing.
     var sequences: [AnsiSequence] = [
-      .moveCursor(row: originRow, col: originCol),
-      .backcolor ( background ),
-      .forecolor ( foreground )
+      .moveCursor ( row: originRow, col: originCol ),
+      .backcolor  ( style.background ),
+      .forecolor  ( style.foreground )
     ]
 
     // Insert a leading space when possible. This gives each menu entry a
@@ -126,19 +118,13 @@ public final class MenuItem : Renderable {
 
 public final class MenuBar : Renderable {
 
-  public var items     : [MenuItem]
-  public var foreground: ANSIForecolor
-  public var background: ANSIBackcolor
+  public var items : [MenuItem]
+  public var style : ElementStyle
 
 
-  public init (
-    items     : [MenuItem],
-    foreground: ANSIForecolor = .black,
-    background: ANSIBackcolor = .bgWhite
-  ) {
-    self.items      = items
-    self.foreground = foreground
-    self.background = background
+  public init ( items: [MenuItem], style: ElementStyle = ElementStyle() ) {
+    self.items = items
+    self.style = style
   }
 
   func locateMenuItem ( select: Character ) -> MenuItem? {
@@ -156,10 +142,10 @@ public final class MenuBar : Renderable {
     guard rows > 0 && columns > 0 else { return nil }
 
     var sequences: [AnsiSequence] = [
-      .moveCursor(row: 1, col: 1),
-      .backcolor ( background ),
-      .forecolor ( foreground ),
-      .repeatChars(" ", count: columns),
+      .moveCursor  ( row: 1, col: 1),
+      .backcolor   ( style.background ),
+      .forecolor   ( style.foreground ),
+      .repeatChars ( " ", count: columns),
       .resetcolor
     ]
 

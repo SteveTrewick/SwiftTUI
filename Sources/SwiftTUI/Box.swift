@@ -23,7 +23,7 @@ public struct ElementStyle {
   public let foreground: ANSIForecolor
   public let background: ANSIBackcolor
   
-  public init ( foreground: ANSIForecolor = .white, background: ANSIBackcolor = .bgBlack ) {
+  public init ( foreground: ANSIForecolor = .white, background: ANSIBackcolor = .black ) {
     self.foreground = foreground
     self.background = background
   }

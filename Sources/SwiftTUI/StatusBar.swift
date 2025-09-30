@@ -2,23 +2,16 @@ import Foundation
 
 public final class StatusBar : Renderable {
 
-  public var foreground: ANSIForecolor
-  public var background: ANSIBackcolor
-  public var text      : String
+  public var style : ElementStyle
+  public var text  : String
   
   private let output: OutputController
 
   
-  public init (
-    text      : String,
-    foreground: ANSIForecolor    = .black,
-    background: ANSIBackcolor    = .bgWhite,
-    output    : OutputController = OutputController()
-  ) {
-    self.text       = text
-    self.output     = output
-    self.foreground = foreground
-    self.background = background
+  public init ( text: String, style: ElementStyle, output: OutputController = OutputController() ) {
+    self.text   = text
+    self.style  = style
+    self.output = output
   }
 
   
@@ -34,10 +27,10 @@ public final class StatusBar : Renderable {
     let paddedText   = visibleText + String(repeating: " ", count: paddingCount)
 
     return [
-      .moveCursor( row: row, col: 1 ),
-      .backcolor ( background ),
-      .forecolor ( foreground ),
-      .text      ( paddedText ),
+      .moveCursor ( row: row, col: 1 ),
+      .backcolor  ( style.background ),
+      .forecolor  ( style.foreground ),
+      .text       ( paddedText ),
       .resetcolor
     ]
   }

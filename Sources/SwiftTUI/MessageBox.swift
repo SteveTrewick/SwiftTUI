@@ -28,6 +28,10 @@ public struct MessageBox : Renderable {
     col    : Int? = nil,
     style  : ElementStyle = ElementStyle()
   ) {
+    
+    
+    // the fuck?
+    
     // Preserve a default style-focused element while deferring bounds to render.
     let placeholderBounds = BoxBounds(
       row   : row ?? 1,
@@ -40,7 +44,7 @@ public struct MessageBox : Renderable {
       message: message,
       row    : row,
       col    : col,
-      element: BoxElement(bounds: placeholderBounds, style: style)
+      element: BoxElement( bounds: placeholderBounds, style: style )
     )
   }
 
@@ -53,7 +57,8 @@ public struct MessageBox : Renderable {
 
     // Split on newlines while preserving empty trailing rows so blank lines render.
     var lines = message.split(separator: "\n", omittingEmptySubsequences: false)
-      .map(String.init)
+                       .map(String.init)
+    
     if lines.isEmpty { lines = [""] }
 
     let maxLineLength = lines.map { $0.count }.max() ?? 0
@@ -66,7 +71,7 @@ public struct MessageBox : Renderable {
     guard width  <= columns else { return nil }
     guard height <= rows    else { return nil }
 
-    let top = row ?? max(1, ((rows    - height) / 2) + 1)
+    let top  = row ?? max(1, ((rows    - height) / 2) + 1)
     let left = col ?? max(1, ((columns - width ) / 2) + 1)
 
     let bottom = top  + height - 1
@@ -77,23 +82,26 @@ public struct MessageBox : Renderable {
     guard bottom <= rows else { return nil }
     guard right  <= columns else { return nil }
 
-    let bounds = BoxBounds(row: top, col: left, width: width, height: height)
+    let bounds     = BoxBounds(row: top, col: left, width: width, height: height)
     let boxElement = BoxElement(bounds: bounds, style: element.style)
 
     guard var sequences = Box(element: boxElement).render ( in: size ) else { return nil }
 
-    let textStartRow = top + 1
-    let textStartCol = left + 1
+    let textStartRow  = top + 1
+    let textStartCol  = left + 1
     let textAreaWidth = width - 2
 
+    
     for (idx, line) in lines.enumerated() {
+      
       let rowPosition = textStartRow + idx
       let padded = " " + line + String(repeating: " ", count: max(0, textAreaWidth - 1 - line.count))
+     
       sequences += [
-        .moveCursor(row: rowPosition, col: textStartCol),
-        .backcolor(boxElement.style.background),
-        .forecolor(boxElement.style.foreground),
-        .text(padded),
+        .moveCursor ( row: rowPosition, col: textStartCol ),
+        .backcolor  ( boxElement.style.background ),
+        .forecolor  ( boxElement.style.foreground ),
+        .text       ( padded ),
         .resetcolor
       ]
     }

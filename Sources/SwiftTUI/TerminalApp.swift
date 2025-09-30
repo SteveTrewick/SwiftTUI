@@ -17,30 +17,22 @@ public final class TerminalApp {
   private let window    : WindowChanges
   private let statusBar : StatusBar
   private let menuBar   : MenuBar
-  private let output    : OutputController
-  private let input     : TerminalInputController
-  private let overlays  : OverlayManager
+  private let context   : AppContext
   private var cursor    : Cursor
   
   private var awaitingMenuSelection: Bool
   
-  public init (
-    
-    menu   : MenuBar,
-    context: AppContext,
-    window : WindowChanges = WindowChanges()
-  )
+  public init ( menuItems: [MenuItem], context: AppContext, style: ElementStyle, window: WindowChanges = WindowChanges() )
   {
-    self.cursor                  = Cursor(row: 0, col: 0)
-    self.window                  = window
-    self.output                  = context.output
-    self.input                   = context.input
-    self.overlays                = context.overlays
-    self.statusBar               = StatusBar( text: "", output: output )
-    self.menuBar                 = menu
+    self.cursor                 = Cursor(row: 0, col: 0)
+    self.window                 = window
+    self.context                = context
+    self.statusBar              = StatusBar ( text: "", style: style, output: context.output )
+    self.menuBar                = MenuBar   ( items: menuItems, style: style )
     self.awaitingMenuSelection  = false
 
-    self.overlays.onChange = { [weak self] in
+    // hmm
+    self.context.overlays.onChange = { [weak self] in
       self?.render(everything: true)
     }
     
@@ -52,7 +44,7 @@ public final class TerminalApp {
     }
     
     // hook stdin input (keyboard input and xterm messages)
-    self.input.handler = { [self] input in
+    self.context.input.handler = { [self] input in
       switch input {
         case .failure(let trace) : log ( String(describing: trace) )
         case .success(let input) : process( input )
@@ -63,11 +55,11 @@ public final class TerminalApp {
     freopen("/dev/null", "w", stderr)
     
     // capture all input
-    input.makeRaw()
+    self.context.input.makeRaw()
     
 
     // clear and initialise the screen
-    output.send (
+    self.context.output.send (
       .altBuffer,
       .clearScrollBack,
       .cls,
@@ -75,7 +67,7 @@ public final class TerminalApp {
     )
     
     // start input handler
-    input.stream.resume()
+    self.context.input.stream.resume()
   }
 
   
@@ -119,7 +111,7 @@ public final class TerminalApp {
     
     if everything {
       
-      output.send(
+      context.output.send(
         .cls
       )
       
@@ -128,9 +120,9 @@ public final class TerminalApp {
         updateStatusBar(for: window.size)
       ]
 
-      let overlayElements = overlays.activeOverlays()
+      let overlayElements = context.overlays.activeOverlays()
 
-      output.render (
+      context.output.render (
         elements: baseElements + overlayElements,
         in      : window.size
       )

@@ -26,6 +26,8 @@ public final class OverlayManager {
     onChange?()
   }
 
+  
+  
   public func activeOverlays() -> [Renderable] {
     overlays
   }

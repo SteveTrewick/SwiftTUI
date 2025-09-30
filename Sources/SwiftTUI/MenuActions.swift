@@ -62,17 +62,15 @@ public struct MenuAction {
     }
   }
 
-  public static func box (
-    row   : Int,
-    col   : Int,
-    width : Int,
-    height: Int,
-    style : ElementStyle = ElementStyle()
-  ) -> MenuAction {
-    MenuAction { context, _ in
-      let bounds = BoxBounds(row: row, col: col, width: width, height: height)
-      let element = BoxElement(bounds: bounds, style: style)
-      context.overlays.drawBox(element)
+  public static func box (_ element: BoxElement ) -> MenuAction {
+    MenuAction { context, item in
+      context.overlays.drawBox ( element ) 
+    }
+  }
+  
+  public static func messageBox ( _ message: String ) -> MenuAction {
+    MenuAction { context, item in
+      
     }
   }
 
