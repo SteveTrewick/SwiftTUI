@@ -10,7 +10,7 @@ RULES:
   Never, ever, commit Package.resolved. Always honour .gitignore
   you may stub out parts if needed to enable linux compilation for testing but do not break compatibility
   the user prefers terse code, try not to be chatty
-                              
+comments may be verbose                
 CONTEXT:
     we are building terminal code for xterm on macos, xterm uses extensive inband signalling
     using ANSI escape codes, you will need to take macos xterm quirks into account
