@@ -6,7 +6,7 @@ import Foundation
 #if canImport(OSLog)
 import OSLog
 #else
-import GLibc
+import Glibc
 #endif
 
 
