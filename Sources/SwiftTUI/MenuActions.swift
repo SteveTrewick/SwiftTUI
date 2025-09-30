@@ -69,8 +69,16 @@ public struct MenuAction {
   }
   
   public static func messageBox ( _ message: String ) -> MenuAction {
-    MenuAction { context, item in
-      //TODO: add message box drawing code here
+
+    MenuAction { context, _ in
+      // Push a transient message overlay so the calling menu item can surface feedback.
+      context.overlays.drawMessageBox(
+        message,
+        style: ElementStyle(
+          foreground: .white,
+          background: .black
+        )
+      )
     }
   }
 

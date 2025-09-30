@@ -26,7 +26,27 @@ public final class OverlayManager {
     onChange?()
   }
 
-  //TODO: add message box drawing code here
+
+  public func drawMessageBox (
+    _ message: String,
+    row      : Int?          = nil,
+    col      : Int?          = nil,
+    style    : ElementStyle  = ElementStyle()
+  ) {
+
+    // Default to the provided style while letting the render pass pick final bounds.
+    let messageBox = MessageBox(
+      message: message,
+      row    : row,
+      col    : col,
+      style  : style
+    )
+
+    overlays.append ( messageBox )
+    onChange?()
+  }
+
+  
   
   public func activeOverlays() -> [Renderable] {
     overlays
