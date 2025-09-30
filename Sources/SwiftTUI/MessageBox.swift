@@ -6,23 +6,42 @@ import Foundation
 public struct MessageBox : Renderable {
 
   public let message   : String
-  public let foreground: ANSIForecolor
-  public let background: ANSIBackcolor
   public let row       : Int?
   public let col       : Int?
+  public let element   : BoxElement
 
   public init (
-    message   : String,
-    row       : Int? = nil,
-    col       : Int? = nil,
-    foreground: ANSIForecolor = .white,
-    background: ANSIBackcolor = .bgBlack
+    message: String,
+    row    : Int? = nil,
+    col    : Int? = nil,
+    element: BoxElement
   ) {
-    self.message    = message
-    self.row        = row
-    self.col        = col
-    self.foreground = foreground
-    self.background = background
+    self.message = message
+    self.row     = row
+    self.col     = col
+    self.element = element
+  }
+
+  public init (
+    message: String,
+    row    : Int? = nil,
+    col    : Int? = nil,
+    style  : ElementStyle = ElementStyle()
+  ) {
+    // Preserve a default style-focused element while deferring bounds to render.
+    let placeholderBounds = BoxBounds(
+      row   : row ?? 1,
+      col   : col ?? 1,
+      width : 2,
+      height: 2
+    )
+
+    self.init(
+      message: message,
+      row    : row,
+      col    : col,
+      element: BoxElement(bounds: placeholderBounds, style: style)
+    )
   }
 
   public func render ( in size: winsize ) -> [AnsiSequence]? {
@@ -58,14 +77,10 @@ public struct MessageBox : Renderable {
     guard bottom <= rows else { return nil }
     guard right  <= columns else { return nil }
 
-    guard var sequences = Box(
-      row: top,
-      col: left,
-      width: width,
-      height: height,
-      foreground: foreground,
-      background: background
-    ).render ( in: size ) else { return nil }
+    let bounds = BoxBounds(row: top, col: left, width: width, height: height)
+    let boxElement = BoxElement(bounds: bounds, style: element.style)
+
+    guard var sequences = Box(element: boxElement).render ( in: size ) else { return nil }
 
     let textStartRow = top + 1
     let textStartCol = left + 1
@@ -76,8 +91,8 @@ public struct MessageBox : Renderable {
       let padded = " " + line + String(repeating: " ", count: max(0, textAreaWidth - 1 - line.count))
       sequences += [
         .moveCursor(row: rowPosition, col: textStartCol),
-        .backcolor(background),
-        .forecolor(foreground),
+        .backcolor(boxElement.style.background),
+        .forecolor(boxElement.style.foreground),
         .text(padded),
         .resetcolor
       ]

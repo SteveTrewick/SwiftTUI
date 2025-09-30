@@ -11,20 +11,16 @@ public final class OverlayManager {
     self.overlays = overlays
   }
 
-  
-  public func drawBox ( row: Int, col: Int, width: Int, height: Int, foreground: ANSIForecolor = .white, background: ANSIBackcolor = .bgBlack ) {
-   
-    guard width >= 2 else { return }
-    guard height >= 2 else { return }
 
-    let box = Box(
-      row       : row,
-      col       : col,
-      width     : width,
-      height    : height,
-      foreground: foreground,
-      background: background
-    )
+  public func drawBox ( _ element: BoxElement ) {
+
+    let bounds = element.bounds
+
+    guard bounds.width  >= 2 else { return }
+    guard bounds.height >= 2 else { return }
+
+    // Persist the descriptor so overlay redraws can recover the full bounds and style.
+    let box = Box(element: element)
 
     overlays.append ( box )
     onChange?()
