@@ -62,7 +62,7 @@ public struct MenuAction {
     }
   }
 
-  public static func box ( row: Int, col: Int, width: Int, height: Int, foreground: ANSIForecolor = .white, background: ANSIBackcolor = .bgBlue ) -> MenuAction {
+  public static func box ( row: Int, col: Int, width: Int, height: Int, foreground: ANSIForecolor = .white, background: ANSIBackcolor = .bgBlack ) -> MenuAction {
     MenuAction { context, _ in
         context.overlays.drawBox(
           row       : row,

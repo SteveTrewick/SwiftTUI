@@ -16,7 +16,7 @@ public final class OverlayManager {
     width: Int,
     height: Int,
     foreground: ANSIForecolor = .white,
-    background: ANSIBackcolor = .bgBlue
+    background: ANSIBackcolor = .bgBlack
   ) {
     guard width >= 2 else { return }
     guard height >= 2 else { return }
