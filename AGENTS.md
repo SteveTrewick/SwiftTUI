@@ -13,6 +13,7 @@ RULES:
   when adding new code add some comments, particulalrly explaining why you have selected a particular implmentaton patter, the user finds some of your architectural choices confusing.
   try to build new featires in a similar style as the existing codebase where this is posible, explain if you are unable to do this becuse of the structure
   the default background color is black, .bgBlack, it is never, ever blue
+  long lines are OK, especially init functions, user has a big screen and likes long init lines
 comments may be verbose                
 CONTEXT:
     we are building terminal code for xterm on macos, xterm uses extensive inband signalling
