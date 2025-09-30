@@ -19,13 +19,21 @@ public final class Button: Renderable, OverlayInputHandling {
 
   private var onActivate : (() -> Void)?
   private var isArmed    : Bool
+  public var highlightForeground: ANSIForecolor?
+  public var highlightBackground: ANSIBackcolor?
+  public var usesDimHighlight  : Bool
+  public var isHighlightActive : Bool
 
   public init(
     bounds      : BoxBounds,
     text        : String,
     style       : ElementStyle = ElementStyle(),
     activationKey: TerminalInput.ControlKey = .RETURN,
-    onActivate  : (() -> Void)? = nil
+    onActivate  : (() -> Void)? = nil,
+    highlightForeground: ANSIForecolor? = nil,
+    highlightBackground: ANSIBackcolor? = nil,
+    usesDimHighlight: Bool = false,
+    isHighlightActive: Bool = false
   ) {
     self.bounds        = bounds
     self.text          = text
@@ -33,6 +41,10 @@ public final class Button: Renderable, OverlayInputHandling {
     self.activationKey = activationKey
     self.onActivate    = onActivate
     self.isArmed       = true
+    self.highlightForeground = highlightForeground
+    self.highlightBackground = highlightBackground
+    self.usesDimHighlight    = usesDimHighlight
+    self.isHighlightActive   = isHighlightActive
 
     // Ensure we have at least enough width for the label plus brackets.
     let minimum = max(minimumWidth, bounds.width)
@@ -80,11 +92,22 @@ public final class Button: Renderable, OverlayInputHandling {
                       + displayText
                       + String(repeating: " ", count: rightPadding)
 
+    let baseBackground   = style.background
+    let baseForeground   = style.foreground
+    let highlightBack    = highlightBackground ?? baseBackground
+    let highlightFore    = highlightForeground ?? baseForeground
+    let shouldHighlight  = isHighlightActive
+    let shouldDimHighlight = usesDimHighlight && !shouldHighlight && highlightBackground != nil
+
+    // The highlight palette keeps overlays visually coherent without forcing
+    // every caller to understand ANSI attributes. A dimmed highlight still uses
+    // the highlight background but wraps the label in SGR 2 so inactive buttons
+    // fade visually on macOS's xterm.
     return [
       .moveCursor(row: bounds.row, col: bounds.col),
-      .backcolor (style.background),
-      .forecolor (style.foreground),
-      .text      (paddedContent),
+      .backcolor (shouldHighlight || shouldDimHighlight ? highlightBack : baseBackground),
+      .forecolor (shouldHighlight || shouldDimHighlight ? highlightFore : baseForeground),
+      shouldDimHighlight ? .dim(paddedContent) : .text(paddedContent),
       .resetcolor
     ]
   }
