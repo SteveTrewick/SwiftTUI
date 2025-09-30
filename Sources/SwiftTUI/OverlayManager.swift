@@ -27,12 +27,7 @@ public final class OverlayManager {
   }
 
 
-  public func drawMessageBox (
-    _ message: String,
-    row      : Int?          = nil,
-    col      : Int?          = nil,
-    style    : ElementStyle  = ElementStyle()
-  ) {
+  public func drawMessageBox (_ message: String, row: Int? = nil, col: Int? = nil, style: ElementStyle  = ElementStyle() ) {
 
     // Default to the provided style while letting the render pass pick final bounds.
     let messageBox = MessageBox(
