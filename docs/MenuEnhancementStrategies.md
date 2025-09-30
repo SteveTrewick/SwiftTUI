@@ -15,7 +15,32 @@ These limitations block richer UI affordances such as message boxes or overlays 
 2. Replace the hard-coded `performAction()` implementation with dependency injection:
    * Add a stored property `action: MenuAction` to `MenuItem` and extend the initializer so callers can supply their own action.
    * Update `TerminalApp` to pass the appropriate `MenuAction` instances when constructing the menu bar.
-3. Provide default actions for simple cases to keep ergonomics high, e.g. `MenuItem(name: "About", action: .message("SwiftTUI 1.0"))`.
+3. Provide default actions for simple cases to keep ergonomics high, e.g. `MenuItem(name: "About", action: .message("SwiftTUI 1.0"))`. Back this idea with a small catalog of pre-built command objects so integrators can wire up menus without re-implementing boilerplate behaviours.
+   * Offer a ```.message(_:)``` helper that emits a transient overlay or modal displaying text, plus pragmatic fallbacks such as ```.noop``` for placeholder slots and ```.openURL(_:)``` for documentation links.
+   * Keep the factory surface thin by relying on the same `MenuActionContext` used elsewhere, so custom actions can still interoperate with the shared services.
+   * Suggested implementation:
+
+     ```swift
+     struct MenuAction {
+         let execute: (MenuActionContext) -> Void
+
+         static func message(_ body: String) -> MenuAction {
+             MenuAction { context in
+                 context.overlayManager.present(.messageBox(body))
+             }
+         }
+
+         static var noop: MenuAction { MenuAction { _ in } }
+
+         static func openURL(_ url: URL) -> MenuAction {
+             MenuAction { context in
+                 context.documentationController.presentExternalURL(url)
+             }
+         }
+     }
+     ```
+
+     The default cases double as documentation of how to compose richer commands while ensuring teams can ship usable menus before investing in bespoke behaviour.
 
 This pattern decouples the menu layer from application logic while enabling testable, composable behaviours.
 
