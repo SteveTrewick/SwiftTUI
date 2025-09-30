@@ -3,9 +3,17 @@
 
 import Foundation
 
+#if canImport(OSLog)
+import OSLog
+#else
+import GLibc
+#endif
+
+
+
 public struct AppContext {
   
-  var input : TerminalInputController
+  var input  : TerminalInputController
   var output : OutputController
   
   public init (
@@ -15,10 +23,21 @@ public struct AppContext {
     self.input  = input
     self.output = output
   }
+  
+  public func log(_ string: String) {
+  #if canImport(OSLog)
+    os_log(.debug, "%{public}s", "\(string)")
+  #else
+    fputs(string, stderr)
+  #endif
+  }
+  
 }
+
 
 public struct MenuActionContext {
   
+  // TODO: needs more properties/methods for UI overlay
   public var app : AppContext
   
   public init (app: AppContext ) {
@@ -28,19 +47,17 @@ public struct MenuActionContext {
 
 public typealias MenuActionExecution = (MenuActionContext, MenuItem) -> Void
 
+
 public struct MenuAction {
   
-  var context : MenuActionContext
-  var action  : MenuActionExecution
+  public var execute : MenuActionExecution
   
-  public init (context: MenuActionContext, action: @escaping MenuActionExecution ) {
-    self.context = context
-    self.action  = action
-  }
-  
-  // we may want to return a value here, lets here how it goes
-  func execute( _ item: MenuItem) {
-      action(context, item)
+  public static func logMessage ( _ body: String) -> MenuAction {
+    MenuAction { context, item in
+      context.app.log("\(item.name): \(body)")
+    }
   }
   
 }
+
+
