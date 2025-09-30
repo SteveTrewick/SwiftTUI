@@ -20,27 +20,24 @@ public final class TerminalApp {
   private let output    : OutputController
   private let input     : TerminalInputController
   private var cursor    : Cursor
+  
   private var awaitingMenuSelection: Bool
   
   public init (
-    window: WindowChanges           = WindowChanges(),
-    output: OutputController        = OutputController(),
-    input : TerminalInputController = TerminalInputController()
+    
+    menu   : MenuBar,
+    context: AppContext,
+    window : WindowChanges = WindowChanges()
   )
   {
     self.cursor                  = Cursor(row: 0, col: 0)
     self.window                  = window
-    self.output                  = output
-    self.input                   = input
+    self.output                  = context.output
+    self.input                   = context.input
     self.statusBar               = StatusBar( text: "", output: output )
-    self.menuBar                 = MenuBar(
-      items: [
-        MenuItem(name: "Foo"),
-        MenuItem(name: "Bar"),
-        MenuItem(name: "Qux"),
-      ]
-    )
-    self.awaitingMenuSelection   = false
+    self.menuBar                 = menu
+    self.awaitingMenuSelection  = false
+    
     
     // hook the window change handler, if the window size changes, we need to redraw
     // basically everything
@@ -56,11 +53,13 @@ public final class TerminalApp {
       }
     }
     
-    input.stream.resume()
+    // redirect stderr to null so we dont spam log/error messages to the terminal
+    freopen("/dev/null", "w", stderr)
     
     // capture all input
     input.makeRaw()
     
+
     // clear and initialise the screen
     output.send (
       .altBuffer,
@@ -69,8 +68,13 @@ public final class TerminalApp {
       .moveCursor(row: 1, col: 1)
     )
     
+    // start input handler
+    input.stream.resume()
   }
 
+  
+  
+  
   // process stdin
   func process (_ inputs: [TerminalInput.Input] ) {
     
