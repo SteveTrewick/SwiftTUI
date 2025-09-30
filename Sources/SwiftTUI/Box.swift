@@ -69,7 +69,10 @@ public struct Box : Renderable {
           .backcolor (background),
           .forecolor (foreground),
           .box   (.vert),
+          .resetcolor,
           .repeatChars(" ", count: extent.width - 2),
+          .backcolor (background),
+          .forecolor (foreground),
           .box   (.vert),
           .resetcolor,
         ]
