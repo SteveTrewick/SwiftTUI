@@ -73,7 +73,7 @@ public final class MenuItem : Renderable {
 
     if remaining > 0 && !name.isEmpty {
       let firstChar = String(name.prefix(1))
-      sequences.append(.text("\u{001B}[1m\(firstChar)\u{001B}[22m"))
+      sequences.append(.bold(firstChar))
       remaining -= 1
 
       if remaining > 0 {
