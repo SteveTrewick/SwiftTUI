@@ -9,6 +9,7 @@ RULES:
   always use swift-tools-version:5.5
   Never, ever, commit Package.resolved. Always honour .gitignore
   you may stub out parts if needed to enable linux compilation for testing but do not break compatibility
+  the user prefers terse code, try not to be chatty
                               
 CONTEXT:
     we are building terminal code for xterm on macos, xterm uses extensive inband signalling
