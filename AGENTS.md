@@ -1,15 +1,17 @@
 
 RULES:
-  No swift 6, no async/await
-  Use Swift 5
+  No swift 6, no async/await.
+  Use Swift 5.
   Conditional bindings especially look like this :
     if let path = path else {}
     guard let path = path else { return }
-  macos 11 native
-  always use swift-tools-version:5.5
-  Never, ever, commit Package.resolved. Always honour .gitignore
-  you may stub out parts if needed to enable linux compilation for testing but do not break compatibility
-  the user prefers terse code, try not to be chatty
+  macos 11 native.
+  always use swift-tools-version:5.5.
+  Never, ever, commit Package.resolved. Always honour .gitignore.
+  you may stub out parts if needed to enable linux compilation for testing but do not break compatibility.
+  the user prefers terse code, try not to be chatty.
+  when adding new code add some comments, particulalrly explaining why you have selected a particular implmentaton patter, the user finds some of your architectural choices confusing.
+  try to build new featires in a similar style as the existing codebase where this is posible, explain if you are unable to do this becuse of the structure
 comments may be verbose                
 CONTEXT:
     we are building terminal code for xterm on macos, xterm uses extensive inband signalling
