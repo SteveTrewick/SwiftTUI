@@ -85,6 +85,7 @@ public struct Box : Renderable {
         .box   (.horiz(extent.width - 2)),
         .box   (.brc),
         .resetcolor,
+        .hideCursor // for some reason it cmes back
     ]
   }
 }
