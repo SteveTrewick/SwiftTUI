@@ -1,5 +1,15 @@
 import Foundation
 
+private struct CursorHiddenBox: Renderable {
+  let box: Box
+
+  func render(in size: winsize) -> [AnsiSequence]? {
+    guard var sequences = box.render(in: size) else { return nil }
+    sequences.append(.hideCursor)
+    return sequences
+  }
+}
+
 public final class OverlayManager {
 
   private var overlays: [Renderable]
@@ -30,7 +40,7 @@ public final class OverlayManager {
       background: background
     )
 
-    overlays.append(box)
+    overlays.append(CursorHiddenBox(box: box))
     onChange?()
   }
 
