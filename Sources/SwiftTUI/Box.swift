@@ -13,6 +13,23 @@ struct TermSize {
 }
 
 
+public struct BoxBounds {
+  public let row       : Int
+  public let col       : Int
+  public let width     : Int
+  public let height    : Int
+}
+
+public struct ElementStyle {
+  public let foreground: ANSIForecolor
+  public let background: ANSIBackcolor
+}
+
+public struct BoxElement {
+  public let bounds: BoxBounds
+  public let style : ElementStyle
+}
+
 public struct Box : Renderable {
 
   let position  : TermCoord
