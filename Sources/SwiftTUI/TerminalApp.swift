@@ -37,7 +37,7 @@ public final class TerminalApp {
       items: [
         MenuItem(name: "Foo"),
         MenuItem(name: "Bar"),
-        MenuItem(name: "Baz"),
+        MenuItem(name: "Qux"),
       ]
     )
     self.awaitingMenuSelection   = false
@@ -56,6 +56,7 @@ public final class TerminalApp {
       }
     }
     
+    input.stream.resume()
     
     // capture all input
     input.makeRaw()
@@ -79,20 +80,12 @@ public final class TerminalApp {
     for input in inputs {
       switch input {
 
-        case .key(let key) :
-          awaitingMenuSelection = (key == .ESC)
+        case .key      ( let key      ) : awaitingMenuSelection = (key == .ESC)
+        case .ascii    ( let data     ) : handleMenuSelectionPayload(data)
+        case .unicode  ( let data     ) : handleMenuSelectionPayload(data)
+        case .response ( let response ) : process ( response )
 
-        case .ascii(let data) :
-          handleMenuSelectionPayload(data)
-
-        case .unicode(let data) :
-          handleMenuSelectionPayload(data)
-
-        case .response( let response ) :
-          process ( response )
-
-        default :
-          break
+        default : break
       }
     }
 
@@ -139,32 +132,18 @@ public final class TerminalApp {
   }
 
 
-  private func decodeSingleCharacter(from data: Data) -> Character? {
-    guard !data.isEmpty else { return nil }
-
-    if data.count == 1 {
-      return Character(UnicodeScalar(data[0]))
-    }
-
-    guard let string = String(data: data, encoding: .utf8) else { return nil }
-    guard string.count == 1, let character = string.first else { return nil }
-
-    return character
-  }
-
 
   private func handleMenuSelectionPayload(_ data: Data) {
+    
     guard awaitingMenuSelection else { return }
     awaitingMenuSelection = false
-    guard let character = decodeSingleCharacter(from: data) else { return }
-    activateMenuItem(for: character)
+    
+    if let char = String(data: data, encoding: .utf8)?.first {
+      menuBar.locateMenuItem(select: char)?.performAction()
+    }
+    
   }
 
-
-  private func activateMenuItem(for character: Character) {
-    guard let item = menuBar.locateMenuItem(select: character) else { return }
-    item.performAction()
-  }
 
   
   
