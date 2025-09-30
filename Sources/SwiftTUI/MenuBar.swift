@@ -60,10 +60,10 @@ public final class MenuItem : Renderable {
     guard originRow >= 1 && originRow <= rows else { return nil }
     guard originCol >= 1 && originCol <= columns else { return nil }
 
-    let available = columns - originCol + 1
+    var remaining = columns - originCol + 1
     // If the menu origin is beyond the last visible column there is nothing to
     // paint; return early so we do not emit color resets or other stray bytes.
-    guard available > 0 else { return nil }
+    guard remaining > 0 else { return nil }
 
     // Build the sequence list beginning with cursor placement and the color
     // attributes that define this item's visual style. These must precede any
@@ -73,8 +73,6 @@ public final class MenuItem : Renderable {
       .backcolor ( background ),
       .forecolor ( foreground )
     ]
-
-    var remaining = available
 
     // Insert a leading space when possible. This gives each menu entry a
     // consistent gutter so adjacent labels do not touch one another.
