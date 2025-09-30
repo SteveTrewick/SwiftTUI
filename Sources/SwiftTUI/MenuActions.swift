@@ -68,9 +68,17 @@ public struct MenuAction {
     }
   }
   
-  public static func messageBox ( _ message: String ) -> MenuAction {
+  public static func messageBox (
+    _ message: String,
+    buttonText: String = "OK",
+    activationKey: TerminalInput.ControlKey = .RETURN
+  ) -> MenuAction {
     MenuAction { context, _ in
-      context.overlays.drawMessageBox( message )
+      context.overlays.drawMessageBox(
+        message,
+        buttonText   : buttonText,
+        activationKey: activationKey
+      )
     }
   }
 

@@ -5,6 +5,11 @@ import Foundation
 /// then draw each line of text with a single character of padding on either side.
 public struct MessageBox : Renderable {
 
+  public struct Layout {
+    public let bounds: BoxBounds
+    public let lines : [String]
+  }
+
   public let message   : String
   public let row       : Int?
   public let col       : Int?
@@ -48,7 +53,7 @@ public struct MessageBox : Renderable {
     )
   }
 
-  public func render ( in size: winsize ) -> [AnsiSequence]? {
+  public func layout(in size: winsize) -> Layout? {
 
     let rows    = Int(size.ws_row)
     let columns = Int(size.ws_col)
@@ -58,7 +63,7 @@ public struct MessageBox : Renderable {
     // Split on newlines while preserving empty trailing rows so blank lines render.
     var lines = message.split(separator: "\n", omittingEmptySubsequences: false)
                        .map(String.init)
-    
+
     if lines.isEmpty { lines = [""] }
 
     let maxLineLength = lines.map { $0.count }.max() ?? 0
@@ -82,21 +87,29 @@ public struct MessageBox : Renderable {
     guard bottom <= rows else { return nil }
     guard right  <= columns else { return nil }
 
-    let bounds     = BoxBounds(row: top, col: left, width: width, height: height)
+    let bounds = BoxBounds(row: top, col: left, width: width, height: height)
+
+    return Layout(bounds: bounds, lines: lines)
+  }
+
+  public func render ( in size: winsize ) -> [AnsiSequence]? {
+
+    guard let layout = layout(in: size) else { return nil }
+
+    let bounds     = layout.bounds
     let boxElement = BoxElement(bounds: bounds, style: element.style)
 
     guard var sequences = Box(element: boxElement).render ( in: size ) else { return nil }
 
-    let textStartRow  = top + 1
-    let textStartCol  = left + 1
-    let textAreaWidth = width - 2
+    let textStartRow  = bounds.row + 1
+    let textStartCol  = bounds.col + 1
+    let textAreaWidth = bounds.width - 2
 
-    
-    for (idx, line) in lines.enumerated() {
-      
+    for (idx, line) in layout.lines.enumerated() {
+
       let rowPosition = textStartRow + idx
       let padded = " " + line + String(repeating: " ", count: max(0, textAreaWidth - 1 - line.count))
-     
+
       sequences += [
         .moveCursor ( row: rowPosition, col: textStartCol ),
         .backcolor  ( boxElement.style.background ),

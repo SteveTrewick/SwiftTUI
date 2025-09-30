@@ -75,10 +75,16 @@ public final class TerminalApp {
   
   // process stdin
   func process (_ inputs: [TerminalInput.Input] ) {
-    
+
+    defer { awaitingMenuSelection = false }
+
+    if context.overlays.handle(inputs: inputs) {
+      return
+    }
+
     // Catch option-key menu shortcuts (sent as ESC-prefixed characters) and
     // trigger the corresponding menu item action.
-    
+
     for input in inputs {
       switch input {
 
@@ -91,7 +97,6 @@ public final class TerminalApp {
       }
     }
 
-    awaitingMenuSelection = false
   }
   
   // we probably nned to track the cursor position don't we?
