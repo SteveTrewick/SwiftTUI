@@ -5,7 +5,8 @@ public final class MenuItem : Renderable {
   public var name      : String
   public var foreground: ANSIForecolor
   public var background: ANSIBackcolor
-
+  public var action    : MenuAction
+  
   private var originRow: Int
   private var originCol: Int
 
@@ -13,10 +14,12 @@ public final class MenuItem : Renderable {
 
   public init (
     name      : String,
+    action    : MenuAction,
     foreground: ANSIForecolor = .black,
     background: ANSIBackcolor = .bgWhite
   ) {
     self.name       = name
+    self.action     = action
     self.foreground = foreground
     self.background = background
     self.originRow  = 1
@@ -30,7 +33,7 @@ public final class MenuItem : Renderable {
   }
   
   func performAction() {
-    log(name)
+    action.execute(self)
   }
   
   func setOrigin ( row: Int, col: Int ) {
