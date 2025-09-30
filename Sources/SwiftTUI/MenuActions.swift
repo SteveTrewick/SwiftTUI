@@ -3,8 +3,27 @@
 
 import Foundation
 
+public struct AppContext {
+  
+  var input : TerminalInputController
+  var output : OutputController
+  
+  public init (
+    input : TerminalInputController = TerminalInputController(),
+    output: OutputController        = OutputController()
+  ) {
+    self.input  = input
+    self.output = output
+  }
+}
+
 public struct MenuActionContext {
-  public init() {}
+  
+  public var app : AppContext
+  
+  public init (app: AppContext ) {
+    self.app = app
+  }
 }
 
 public typealias MenuActionExecution = (MenuActionContext, MenuItem) -> Void
