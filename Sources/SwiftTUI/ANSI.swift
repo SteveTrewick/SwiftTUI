@@ -36,6 +36,20 @@ public enum ANSIBackcolor : String {
   case bgGrey    = "\u{001B}[48;5;8m"
 }
 
+public enum ANSIAttribute : String {
+  case bold      = "\u{001B}[1m"
+  case underline = "\u{001B}[4m"
+  case dim       = "\u{001B}[2m"
+
+  public var offSequence: String {
+    switch self {
+      case .bold      : return "\u{001B}[22m"
+      case .underline : return "\u{001B}[24m"
+      case .dim       : return "\u{001B}[22m"
+    }
+  }
+}
+
 
 public enum UnicodeBox {
   case horiz(Int)  // horizontal line
@@ -61,10 +75,14 @@ public enum AnsiSequence : CustomStringConvertible {
   case rgb      (r: Int, g: Int, b: Int)
   case rgb_bg   (r: Int, g: Int, b: Int)
   case resetcolor
-  
+
+  case bold(String)
+  case underline(String)
+  case dim(String)
+
   case text(String)
-  
-  
+
+
   case moveCursor (row:  Int, col:  Int)
   case hideCursor
   case showCursor
@@ -120,9 +138,13 @@ public enum AnsiSequence : CustomStringConvertible {
       case .rgb   (let r, let g,  let b) : return "\u{001B}[38;2;\(r);\(g);\(b)m"
       case .rgb_bg(let r, let g,  let b) : return "\u{001B}[48;2;\(r);\(g);\(b)m"
       case .resetcolor                   : return "\u{001B}[0m"
-      
+
+      case .bold      (let text) : return ANSIAttribute.bold.rawValue + text + ANSIAttribute.bold.offSequence
+      case .underline (let text) : return ANSIAttribute.underline.rawValue + text + ANSIAttribute.underline.offSequence
+      case .dim       (let text) : return ANSIAttribute.dim.rawValue + text + ANSIAttribute.dim.offSequence
+
       case .text      (let text) : return text
-      
+
       case .moveCursor (let row,  let col ): return "\u{001B}[\(row);\(col)H"
       case .hideCursor                     : return "\u{001B}[?25l"
       case .showCursor                     : return "\u{001B}[?25h"
