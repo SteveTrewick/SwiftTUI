@@ -19,6 +19,7 @@ public final class TerminalApp {
   private let menuBar   : MenuBar
   private let output    : OutputController
   private let input     : TerminalInputController
+  private let overlays  : OverlayManager
   private var cursor    : Cursor
   
   private var awaitingMenuSelection: Bool
@@ -34,9 +35,14 @@ public final class TerminalApp {
     self.window                  = window
     self.output                  = context.output
     self.input                   = context.input
+    self.overlays                = context.overlays
     self.statusBar               = StatusBar( text: "", output: output )
     self.menuBar                 = menu
     self.awaitingMenuSelection  = false
+
+    self.overlays.onChange = { [weak self] in
+      self?.render(everything: true)
+    }
     
     
     // hook the window change handler, if the window size changes, we need to redraw
@@ -117,8 +123,15 @@ public final class TerminalApp {
         .cls
       )
       
+      let baseElements: [Renderable] = [
+        menuBar,
+        updateStatusBar(for: window.size)
+      ]
+
+      let overlayElements = overlays.activeOverlays()
+
       output.render (
-        elements: [ menuBar, updateStatusBar (for: window.size) ],
+        elements: baseElements + overlayElements,
         in      : window.size
       )
     
