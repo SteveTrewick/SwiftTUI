@@ -3,18 +3,25 @@
 
 import Foundation
 
-struct MenuActionContext {
-  
+public struct MenuActionContext {
+  public init() {}
 }
 
-struct MenuAction {
+public typealias MenuActionExecution = (MenuActionContext, MenuItem) -> Void
+
+public struct MenuAction {
   
   var context : MenuActionContext
-  var action  : ((MenuActionContext) -> Void)? = nil
+  var action  : MenuActionExecution
+  
+  public init (context: MenuActionContext, action: @escaping MenuActionExecution ) {
+    self.context = context
+    self.action  = action
+  }
   
   // we may want to return a value here, lets here how it goes
-  func execute() {
-      action?(context)
+  func execute( _ item: MenuItem) {
+      action(context, item)
   }
   
 }
