@@ -25,10 +25,18 @@ public struct ElementStyle {
   public let background: ANSIBackcolor
 }
 
+
 public struct BoxElement {
+  
   public let bounds: BoxBounds
   public let style : ElementStyle
+  
+  public init( bounds: BoxBounds, style : ElementStyle = ElementStyle(foreground: .white, background: .bgBlack) ) {
+    self.bounds = bounds
+    self.style  = style
+  }
 }
+
 
 public struct Box : Renderable {
 
