@@ -14,15 +14,30 @@ struct TermSize {
 
 
 public struct BoxBounds {
+  
   public let row       : Int
   public let col       : Int
   public let width     : Int
   public let height    : Int
+  
+  public init ( row: Int, col: Int, width: Int, height: Int ) {
+    self.row    = row
+    self.col    = col
+    self.width  = width
+    self.height = height
+  }
+  
 }
 
 public struct ElementStyle {
+  
   public let foreground: ANSIForecolor
   public let background: ANSIBackcolor
+  
+  public init ( foreground: ANSIForecolor = .white, background: ANSIBackcolor = .bgBlack ) {
+    self.foreground = foreground
+    self.background = background
+  }
 }
 
 
@@ -31,7 +46,7 @@ public struct BoxElement {
   public let bounds: BoxBounds
   public let style : ElementStyle
   
-  public init( bounds: BoxBounds, style : ElementStyle = ElementStyle(foreground: .white, background: .bgBlack) ) {
+  public init( bounds: BoxBounds, style : ElementStyle = ElementStyle() ) {
     self.bounds = bounds
     self.style  = style
   }
