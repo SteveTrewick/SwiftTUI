@@ -25,15 +25,15 @@ public enum ANSIForecolor : String  {
 }
 
 public enum ANSIBackcolor : String {
-  case bgBlack   = "\u{001B}[48;5;0m"
-  case bgRed     = "\u{001B}[48;5;1m"
-  case bgGreen   = "\u{001B}[48;5;2m"
-  case bgYellow  = "\u{001B}[48;5;3m"
-  case bgBlue    = "\u{001B}[48;5;4m"
-  case bgMagenta = "\u{001B}[48;5;5m"
-  case bgCyan    = "\u{001B}[48;5;6m"
-  case bgWhite   = "\u{001B}[48;5;7m"
-  case bgGrey    = "\u{001B}[48;5;8m"
+  case black   = "\u{001B}[48;5;0m"
+  case red     = "\u{001B}[48;5;1m"
+  case green   = "\u{001B}[48;5;2m"
+  case yellow  = "\u{001B}[48;5;3m"
+  case blue    = "\u{001B}[48;5;4m"
+  case magenta = "\u{001B}[48;5;5m"
+  case vyan    = "\u{001B}[48;5;6m"
+  case white   = "\u{001B}[48;5;7m"
+  case grey    = "\u{001B}[48;5;8m"
 }
 
 public enum ANSIAttribute : String {
