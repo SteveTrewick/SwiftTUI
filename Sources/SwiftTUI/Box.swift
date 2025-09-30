@@ -26,7 +26,7 @@ public struct Box : Renderable {
     width     : Int,
     height    : Int,
     foreground: ANSIForecolor = .white,
-    background: ANSIBackcolor = .bgBlue
+    background: ANSIBackcolor = .bgBlack
   ) {
     position   = TermCoord(row: row, col: col)
     extent     = TermSize(width: width, height: height)
