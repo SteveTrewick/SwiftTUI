@@ -62,16 +62,17 @@ public struct MenuAction {
     }
   }
 
-  public static func box ( row: Int, col: Int, width: Int, height: Int, foreground: ANSIForecolor = .white, background: ANSIBackcolor = .bgBlack ) -> MenuAction {
+  public static func box (
+    row   : Int,
+    col   : Int,
+    width : Int,
+    height: Int,
+    style : ElementStyle = ElementStyle()
+  ) -> MenuAction {
     MenuAction { context, _ in
-        context.overlays.drawBox(
-          row       : row,
-          col       : col,
-          width     : width,
-          height    : height,
-          foreground: foreground,
-          background: background
-        )
+      let bounds = BoxBounds(row: row, col: col, width: width, height: height)
+      let element = BoxElement(bounds: bounds, style: style)
+      context.overlays.drawBox(element)
     }
   }
 
