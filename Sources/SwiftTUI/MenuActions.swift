@@ -56,29 +56,22 @@ public struct MenuAction {
   
   public var execute : MenuActionExecution
   
-  public static func logMessage ( _ body: String) -> MenuAction {
+  public static func logMessage ( _ body: String ) -> MenuAction {
     MenuAction { context, item in
       context.app.log("\(item.name): \(body)")
     }
   }
 
-  public static func box(
-    row: Int,
-    col: Int,
-    width: Int,
-    height: Int,
-    foreground: ANSIForecolor = .white,
-    background: ANSIBackcolor = .bgBlue
-  ) -> MenuAction {
+  public static func box ( row: Int, col: Int, width: Int, height: Int, foreground: ANSIForecolor = .white, background: ANSIBackcolor = .bgBlue ) -> MenuAction {
     MenuAction { context, _ in
-      context.overlays.drawBox(
-        row      : row,
-        col      : col,
-        width    : width,
-        height   : height,
-        foreground: foreground,
-        background: background
-      )
+        context.overlays.drawBox(
+          row       : row,
+          col       : col,
+          width     : width,
+          height    : height,
+          foreground: foreground,
+          background: background
+        )
     }
   }
 
