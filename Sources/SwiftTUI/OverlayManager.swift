@@ -26,7 +26,7 @@ public final class OverlayManager {
     onChange?()
   }
 
-  
+  //TODO: add message box drawing code here
   
   public func activeOverlays() -> [Renderable] {
     overlays
