@@ -51,6 +51,8 @@ public final class MenuItem : Renderable {
     let rows    = Int(size.ws_row)
     let columns = Int(size.ws_col)
 
+    guard !name.isEmpty else { return nil }
+
     // Validate the terminal dimensions before emitting any bytes. Rendering
     // outside the reported window would at best waste work and at worst leave
     // the cursor in an unexpected position for the caller.
@@ -81,7 +83,7 @@ public final class MenuItem : Renderable {
       remaining -= 1
     }
 
-    if remaining > 0 && !name.isEmpty {
+    if remaining > 0 {
       let firstChar = String(name.prefix(1))
       // Emit the first character in bold to signal the keyboard accelerator.
       // The highlight allows users to see which key activates this menu item.
