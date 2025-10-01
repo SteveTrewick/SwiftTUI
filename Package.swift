@@ -21,7 +21,6 @@ let package = Package(
         // .package(url: /* package url */, from: "1.0.0"),
         .package ( name: "Trace",            url: "https://github.com/SteveTrewick/Trace",            from: "1.0.3" ),
         .package ( name: "PosixInputStream", url: "https://github.com/SteveTrewick/PosixInputStream", from: "1.0.5" ),
-        //.package ( name: "SerialPort",       url: "https://github.com/SteveTrewick/SerialPort",       from: "1.0.5" ),
         .package ( name: "HexDump",          url: "https://github.com/SteveTrewick/HexDump",          from: "2.0.0" )
     ],
     targets: [
@@ -30,9 +29,9 @@ let package = Package(
         .target(
             name: "SwiftTUI",
             dependencies: [
-                .product(name: "Trace", package: "Trace", condition: .when(platforms: [.macOS])),
-                .product(name: "PosixInputStream", package: "PosixInputStream", condition: .when(platforms: [.macOS])),
-                .product(name: "SerialPort", package: "SerialPort", condition: .when(platforms: [.macOS]))
+                .product(name: "Trace",            package: "Trace"),
+                .product(name: "PosixInputStream", package: "PosixInputStream"),
+                
             ]),
         .testTarget(
             name: "SwiftTUITests",
