@@ -164,7 +164,7 @@ private final class MessageBoxOverlay: Renderable, OverlayInputHandling {
 
   func render ( in size: winsize ) -> [AnsiSequence]? {
 
-    guard let layout = messageBox.layout(in: size) else { return nil }
+    guard let layout    = messageBox.layout(in: size) else { return nil }
     guard var sequences = messageBox.render(in: size) else { return nil }
 
     guard !buttons.isEmpty else { return sequences }
