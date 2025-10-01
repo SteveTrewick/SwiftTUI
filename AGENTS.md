@@ -34,9 +34,7 @@ Existing Code :
     ViewBuffer.swift : defines a scrollable text buffer
     OutputController.swift : defines methods to send and display ANSI sequences
     
-Packages:
-    Included in the package dependencies is SerialPort, if you are asked to write any serial code
-    later, use this API
+
     
 
                               
