@@ -175,12 +175,14 @@ private final class MessageBoxOverlay: Renderable, OverlayInputHandling {
     let minimumButtonWidths = buttons.reduce(0) { $0 + $1.minimumWidth }
     let gapCount            = max(buttons.count - 1, 0)
 
+
     guard minimumButtonWidths <= interiorWidth else {
       // Logging the refusal makes it obvious why callers lose their buttons; the guard only fires when
       // the dialog itself is narrower than the combined button labels so nothing could render safely.
       log("MessageBoxOverlay: skipping buttons, minimum width \(minimumButtonWidths) exceeds interior width \(interiorWidth)")
       return sequences
     }
+
 
     let availableGap = max(0, interiorWidth - minimumButtonWidths)
     // Prefer to preserve the existing two-column gutter, but collapse it evenly
