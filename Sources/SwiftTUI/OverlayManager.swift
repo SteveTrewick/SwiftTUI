@@ -46,14 +46,14 @@ public final class OverlayManager {
       buttonConfigs = buttons
     }
 
-    let overlay = MessageBoxOverlay(
-      message   : message,
-      row       : row,
-      col       : col,
-      style     : style,
-      buttons   : buttonConfigs,
-      onDismiss : { [weak self] in self?.clear() },
-      onUpdate  : { [weak self] in self?.onChange?() }
+    let overlay = MessageBoxOverlay (
+      message  : message,
+      row      : row,
+      col      : col,
+      style    : style,
+      buttons  : buttonConfigs,
+      onDismiss: { [weak self] in self?.clear() },
+      onUpdate : { [weak self] in self?.onChange?() }
     )
 
     overlays.append ( overlay )
@@ -93,15 +93,11 @@ public final class OverlayManager {
 
 public struct MessageBoxButton {
 
-  public let text        : String
-  public let activationKey: TerminalInput.ControlKey
-  public let handler     : (() -> Void)?
+  public let text          : String
+  public let activationKey : TerminalInput.ControlKey
+  public let handler       : (() -> Void)?
 
-  public init(
-    text        : String,
-    activationKey: TerminalInput.ControlKey = .RETURN,
-    handler     : (() -> Void)? = nil
-  ) {
+  public init ( text: String, activationKey: TerminalInput.ControlKey = .RETURN, handler: (() -> Void)? = nil ) {
     self.text          = text
     self.activationKey = activationKey
     self.handler       = handler
@@ -110,10 +106,10 @@ public struct MessageBoxButton {
 
 private final class MessageBoxOverlay: Renderable, OverlayInputHandling {
 
-  private let messageBox: MessageBox
-  private var buttons   : [Button]
-  private var activeIndex: Int
-  private let onUpdate  : (() -> Void)?
+  private let messageBox  : MessageBox
+  private var buttons     : [Button]
+  private var activeIndex : Int
+  private let onUpdate    : (() -> Void)?
 
   init(
     message   : String,
@@ -131,7 +127,7 @@ private final class MessageBoxOverlay: Renderable, OverlayInputHandling {
     }
     body += "\n"
 
-    self.messageBox = MessageBox(message: body, row: row, col: col, style: style)
+    self.messageBox  = MessageBox(message: body, row: row, col: col, style: style)
     self.activeIndex = 0
     self.onUpdate    = onUpdate
 
@@ -141,21 +137,21 @@ private final class MessageBoxOverlay: Renderable, OverlayInputHandling {
 
     self.buttons = buttons.enumerated().map { index, config in
       let action = config.handler
-      return Button(
-        bounds      : BoxBounds(row: row ?? 1, col: col ?? 1, width: config.text.count + 4, height: 1),
-        text        : config.text,
-        style       : style,
-        activationKey: config.activationKey,
-        onActivate  : { action?(); onDismiss() },
+      return Button (
+        bounds             : BoxBounds(row: row ?? 1, col: col ?? 1, width: config.text.count + 4, height: 1),
+        text               : config.text,
+        style              : style,
+        activationKey      : config.activationKey,
+        onActivate         : { action?(); onDismiss() },
         highlightForeground: highlightPalette.foreground,
         highlightBackground: highlightPalette.background,
-        usesDimHighlight: true,
-        isHighlightActive: index == 0
+        usesDimHighlight    : true,
+        isHighlightActive   : index == 0
       )
     }
   }
 
-  func render(in size: winsize) -> [AnsiSequence]? {
+  func render ( in size: winsize ) -> [AnsiSequence]? {
 
     guard let layout = messageBox.layout(in: size) else { return nil }
     guard var sequences = messageBox.render(in: size) else { return nil }
@@ -210,12 +206,9 @@ private final class MessageBoxOverlay: Renderable, OverlayInputHandling {
         let previousIndex = activeIndex
 
         switch key {
-          case .left:
-            activeIndex = max(0, activeIndex - 1)
-          case .right:
-            activeIndex = min(buttons.count - 1, activeIndex + 1)
-          default:
-            break
+          case .left  : activeIndex = max(0, activeIndex - 1)
+          case .right : activeIndex = min(buttons.count - 1, activeIndex + 1)
+          default     : break
         }
 
         if activeIndex != previousIndex {
