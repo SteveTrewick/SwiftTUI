@@ -174,13 +174,19 @@ private final class MessageBoxOverlay: Renderable, OverlayInputHandling {
 
     let minimumButtonWidths = buttons.reduce(0) { $0 + $1.minimumWidth }
     let gapCount            = max(buttons.count - 1, 0)
-    let minimumRowWidth     = minimumButtonWidths + gapCount
 
-    guard minimumRowWidth <= interiorWidth else { return sequences }
+    guard minimumButtonWidths <= interiorWidth else {
+      // Logging the refusal makes it obvious why callers lose their buttons; the guard only fires when
+      // the dialog itself is narrower than the combined button labels so nothing could render safely.
+      log("MessageBoxOverlay: skipping buttons, minimum width \(minimumButtonWidths) exceeds interior width \(interiorWidth)")
+      return sequences
+    }
 
-    let availableGap = interiorWidth - minimumButtonWidths
-    let spacing      = buttons.count > 1 ? min(2, availableGap / max(gapCount, 1)) : 0
-    let totalWidth   = minimumButtonWidths + spacing * gapCount
+    let availableGap = max(0, interiorWidth - minimumButtonWidths)
+    // Prefer to preserve the existing two-column gutter, but collapse it evenly
+    // across the row when space runs tight so every button can still render.
+    let spacing    = gapCount > 0 ? min(2, availableGap / gapCount) : 0
+    let totalWidth = minimumButtonWidths + spacing * gapCount
     let textStartRow = bounds.row + 1
     let buttonRow    = textStartRow + max(layout.lines.count - 1, 0)
     let startCol     = bounds.col + 1 + max(0, (interiorWidth - totalWidth) / 2)
@@ -258,7 +264,9 @@ private final class MessageBoxOverlay: Renderable, OverlayInputHandling {
       width + MessageBoxOverlay.buttonWidth(for: config.text)
     }
 
-    return labelWidth + max(buttons.count - 1, 0)
+    // The message body can wrap but the controls cannot vanish, so favour the
+    // button row when reserving space for the overlay.
+    return labelWidth
   }
 
   private static func buttonWidth(for text: String) -> Int {
