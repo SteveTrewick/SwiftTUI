@@ -1,4 +1,9 @@
 import Foundation
+#if os(Linux)
+import Glibc
+#else
+import Darwin
+#endif
 import XCTest
 @testable import SwiftTUI
 
@@ -158,6 +163,58 @@ final class TerminalInputTranslateTests: XCTestCase {
             break
         case .success(let inputs):
             XCTFail("Expected failure for truncated response, got \(inputs)")
+        }
+    }
+}
+
+final class MessageBoxOverlayRenderingTests: XCTestCase {
+
+    func testMessageBoxButtonsRenderWhenSpacingCollapses() {
+        let manager = OverlayManager()
+        let buttons = [
+            MessageBoxButton(text: "YOK"),
+            MessageBoxButton(text: "NOK"),
+            MessageBoxButton(text: "WTF")
+        ]
+
+        manager.drawMessageBox(
+          "Tight\nDialog",
+          row         : 2,
+          col         : 2,
+          style       : ElementStyle(),
+          buttonText  : "OK",
+          activationKey: .RETURN,
+          buttons     : buttons
+        )
+
+        guard let overlay = manager.activeOverlays().last else {
+            return XCTFail("Expected message box overlay")
+        }
+
+        let size = winsize(ws_row: 24, ws_col: 25, ws_xpixel: 0, ws_ypixel: 0)
+
+        guard let sequences = overlay.render(in: size) else {
+            return XCTFail("Expected render output for message box overlay")
+        }
+
+        // Collapse the render output down to the string payloads so the assertions
+        // read naturally and focus on the buttons we expect to see.
+        let buttonStrings = sequences.compactMap { sequence -> String? in
+            switch sequence {
+            case .text(let text):
+                return text
+            case .dim(let text):
+                return text
+            default:
+                return nil
+            }
+        }
+
+        ["[ YOK ]", "[ NOK ]", "[ WTF ]"].forEach { label in
+            XCTAssertTrue(
+                buttonStrings.contains(label),
+                "Missing \(label) in rendered output"
+            )
         }
     }
 }
