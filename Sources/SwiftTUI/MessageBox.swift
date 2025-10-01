@@ -14,24 +14,28 @@ public struct MessageBox : Renderable {
   public let row       : Int?
   public let col       : Int?
   public let element   : BoxElement
+  public let minimumInteriorWidth: Int
 
   public init (
     message: String,
     row    : Int? = nil,
     col    : Int? = nil,
-    element: BoxElement
+    element: BoxElement,
+    minimumInteriorWidth: Int = 0
   ) {
     self.message = message
     self.row     = row
     self.col     = col
     self.element = element
+    self.minimumInteriorWidth = max(0, minimumInteriorWidth)
   }
 
   public init (
     message: String,
     row    : Int? = nil,
     col    : Int? = nil,
-    style  : ElementStyle = ElementStyle()
+    style  : ElementStyle = ElementStyle(),
+    minimumInteriorWidth: Int = 0
   ) {
     
     
@@ -49,7 +53,8 @@ public struct MessageBox : Renderable {
       message: message,
       row    : row,
       col    : col,
-      element: BoxElement( bounds: placeholderBounds, style: style )
+      element: BoxElement( bounds: placeholderBounds, style: style ),
+      minimumInteriorWidth: minimumInteriorWidth
     )
   }
 
@@ -69,7 +74,8 @@ public struct MessageBox : Renderable {
     let maxLineLength = lines.map { $0.count }.max() ?? 0
 
     // One space of padding on either side of the text, plus the two border columns.
-    let interiorWidth = maxLineLength + 2
+    let paddedLineWidth = maxLineLength + 2
+    let interiorWidth = max(paddedLineWidth, minimumInteriorWidth)
     let width         = interiorWidth + 2
     let height        = lines.count + 2
 

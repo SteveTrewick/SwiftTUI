@@ -127,7 +127,18 @@ private final class MessageBoxOverlay: Renderable, OverlayInputHandling {
     }
     body += "\n"
 
-    self.messageBox  = MessageBox(message: body, row: row, col: col, style: style)
+    let minimumInteriorWidth = MessageBoxOverlay.minimumInteriorWidth(for: buttons)
+
+    // Expand the underlying message box so that the button row is always wide
+    // enough for the supplied button labels. Without this, wide button sets get
+    // clipped because the default layout only considered the message text.
+    self.messageBox  = MessageBox(
+      message: body,
+      row    : row,
+      col    : col,
+      style  : style,
+      minimumInteriorWidth: minimumInteriorWidth
+    )
     self.activeIndex = 0
     self.onUpdate    = onUpdate
 
@@ -161,13 +172,15 @@ private final class MessageBoxOverlay: Renderable, OverlayInputHandling {
     let bounds        = layout.bounds
     let interiorWidth = bounds.width - 2
 
-    let minimumContentWidth = buttons.reduce(0) { $0 + $1.minimumWidth }
-    guard minimumContentWidth <= interiorWidth else { return sequences }
+    let minimumButtonWidths = buttons.reduce(0) { $0 + $1.minimumWidth }
+    let gapCount            = max(buttons.count - 1, 0)
+    let minimumRowWidth     = minimumButtonWidths + gapCount
 
-    let availableGap = interiorWidth - minimumContentWidth
-    let gapCount     = max(buttons.count - 1, 1)
-    let spacing      = buttons.count > 1 ? min(2, availableGap / gapCount) : 0
-    let totalWidth   = minimumContentWidth + spacing * max(buttons.count - 1, 0)
+    guard minimumRowWidth <= interiorWidth else { return sequences }
+
+    let availableGap = interiorWidth - minimumButtonWidths
+    let spacing      = buttons.count > 1 ? min(2, availableGap / max(gapCount, 1)) : 0
+    let totalWidth   = minimumButtonWidths + spacing * gapCount
     let textStartRow = bounds.row + 1
     let buttonRow    = textStartRow + max(layout.lines.count - 1, 0)
     let startCol     = bounds.col + 1 + max(0, (interiorWidth - totalWidth) / 2)
@@ -235,6 +248,23 @@ private final class MessageBoxOverlay: Renderable, OverlayInputHandling {
     }
 
     return (fallbackForeground, highlightBackground)
+  }
+
+  private static func minimumInteriorWidth(for buttons: [MessageBoxButton]) -> Int {
+
+    guard !buttons.isEmpty else { return 0 }
+
+    let labelWidth = buttons.reduce(0) { width, config in
+      width + MessageBoxOverlay.buttonWidth(for: config.text)
+    }
+
+    return labelWidth + max(buttons.count - 1, 0)
+  }
+
+  private static func buttonWidth(for text: String) -> Int {
+    // Button labels are rendered as "[ text ]" so we add four characters to the
+    // raw label length to account for the brackets and surrounding spaces.
+    return text.count + 4
   }
 
   private static func backcolor(for forecolor: ANSIForecolor) -> ANSIBackcolor {
