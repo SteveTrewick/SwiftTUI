@@ -14,7 +14,13 @@ RULES:
   try to build new featires in a similar style as the existing codebase where this is posible, explain if you are unable to do this becuse of the structure
   the default background color is black, .bgBlack, it is never, ever blue
   long lines are OK, especially init functions, user has a big screen and likes long init lines
-comments may be verbose                
+  comments may be verbose                
+
+CODING STYLE :
+  Please read and follow the coding style rules in STYLERULES.md
+
+
+
 CONTEXT:
     we are building terminal code for xterm on macos, xterm uses extensive inband signalling
     using ANSI escape codes, you will need to take macos xterm quirks into account
