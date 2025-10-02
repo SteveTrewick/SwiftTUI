@@ -40,6 +40,7 @@ public final class OverlayManager {
 
   public func drawMessageBox (
     _ message: String,
+    context  : AppContext,
     row      : Int?              = nil,
     col      : Int?              = nil,
     style    : ElementStyle      = ElementStyle(),
@@ -57,6 +58,7 @@ public final class OverlayManager {
 
     let overlay = MessageBoxOverlay (
       message  : message,
+      context  : context,
       row      : row,
       col      : col,
       style    : style,
@@ -74,6 +76,7 @@ public final class OverlayManager {
 
   public func drawSelectionList (
     _ items: [SelectionListItem],
+    context  : AppContext,
     row      : Int?         = nil,
     col      : Int?         = nil,
     style    : ElementStyle = ElementStyle(),
@@ -85,6 +88,7 @@ public final class OverlayManager {
 
     let overlay = SelectionListOverlay (
       items    : items,
+      context  : context,
       row      : row,
       col      : col,
       style    : style,
@@ -176,9 +180,9 @@ public struct MessageBoxButton {
 
   public let text          : String
   public let activationKey : TerminalInput.ControlKey
-  public let handler       : (() -> Void)?
+  public let handler       : ((AppContext) -> Void)?
 
-  public init ( text: String, activationKey: TerminalInput.ControlKey = .RETURN, handler: (() -> Void)? = nil ) {
+  public init ( text: String, activationKey: TerminalInput.ControlKey = .RETURN, handler: ((AppContext) -> Void)? = nil ) {
     self.text          = text
     self.activationKey = activationKey
     self.handler       = handler
@@ -188,6 +192,7 @@ public struct MessageBoxButton {
 final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalidating {
 
   private let messageBox  : MessageBox
+  private let context     : AppContext
   private var buttons     : [Button]
   private var activeIndex : Int
   private let onUpdate    : (() -> Void)?
@@ -201,6 +206,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
 
   init(
     message   : String,
+    context   : AppContext,
     row       : Int?,
     col       : Int?,
     style     : ElementStyle,
@@ -227,6 +233,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
       style  : style,
       minimumInteriorWidth: minimumInteriorWidth
     )
+    self.context     = context
     self.activeIndex = 0
     self.onUpdate    = onUpdate
     self.cachedLayout = nil
@@ -244,7 +251,12 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
         text               : config.text,
         style              : style,
         activationKey      : config.activationKey,
-        onActivate         : { action?(); onDismiss() },
+        onActivate         : {
+          // Carry the current application context into button handlers so they can
+          // present follow-up UI or interact with I/O pipelines safely.
+          action?(context)
+          onDismiss()
+        },
         highlightForeground: highlightPalette.foreground,
         highlightBackground: highlightPalette.background,
         usesDimHighlight    : true,
@@ -488,9 +500,9 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
 public struct SelectionListItem {
 
   public let text    : String
-  public let handler : (() -> Void)?
+  public let handler : ((AppContext) -> Void)?
 
-  public init ( text: String, handler: (() -> Void)? = nil ) {
+  public init ( text: String, handler: ((AppContext) -> Void)? = nil ) {
     self.text    = text
     self.handler = handler
   }
@@ -499,6 +511,7 @@ public struct SelectionListItem {
 final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInvalidating {
 
   private let items             : [SelectionListItem]
+  private let context           : AppContext
   private let row               : Int?
   private let col               : Int?
   private let style             : ElementStyle
@@ -518,6 +531,7 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
 
   init (
     items    : [SelectionListItem],
+    context  : AppContext,
     row      : Int?,
     col      : Int?,
     style    : ElementStyle,
@@ -527,6 +541,7 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
   ) {
 
     self.items             = items
+    self.context           = context
     self.row               = row
     self.col               = col
     self.style             = style
@@ -714,7 +729,9 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
 
     let item = items[activeIndex]
     onSelect? ( item )
-    item.handler? ()
+    // Pass through the broader application context so selection handlers can
+    // trigger follow-up overlays or logging without reaching back into global state.
+    item.handler? ( context )
     dismiss()
   }
 
