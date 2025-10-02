@@ -201,9 +201,9 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
   private var dirtyButtonIndices: Set<Int>
   private var didRenderLastPass: Bool
 
-  // Reserve a single trailing row so buttons sit directly on the dialog's
-  // footer without needing a nested frame.
-  private static let trailingBlankLines       = 1
+  // Reserve a blank row for the horizontal rule and another for the button row so
+  // the divider never overlaps the message body.
+  private static let trailingBlankLines       = 2
 
   // Expose the highlight index for regression tests without widening the public surface.
   var debugActiveButtonIndex: Int { activeIndex }
@@ -226,10 +226,10 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
 
     if !buttons.isEmpty {
 
-      // Reserve a trailing row for the button strip so the labels can render
-      // directly against the footer without leaking blank padding. Baking this
-      // into the message string keeps the geometry stable regardless of the
-      // caller's copy length while letting us paint the buttons as overlays.
+      // Reserve trailing rows for the divider and button strip so the labels can render
+      // directly against the footer without leaking blank padding. Baking this into the
+      // message string keeps the geometry stable regardless of the caller's copy length
+      // while letting us paint the buttons as overlays.
       var trailingNewlines = 0
       for character in body.reversed() {
         if character == "\n" {
