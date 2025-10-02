@@ -5,12 +5,19 @@ public final class OverlayManager {
 
   private var overlays: [Renderable]
   private var interactiveOverlays: [OverlayInputHandling]
+  // Maintain a short FIFO buffer so overlays can drain bursts over several passes
+  // without dropping keystrokes when they are busy repainting.
+  private var bufferedInputs: [TerminalInput.Input]
+
+  private let maximumBufferedInputs = 32
+  private let maximumInputsPerPass  = 16
 
   public var onChange: ((Bool) -> Void)? = nil
 
   public init(overlays: [Renderable] = []) {
     self.overlays            = overlays
     self.interactiveOverlays = []
+    self.bufferedInputs      = []
   }
 
 
@@ -71,16 +78,49 @@ public final class OverlayManager {
 
     guard !interactiveOverlays.isEmpty else { return false }
 
-    for input in inputs {
-      let handlers = interactiveOverlays
-      for overlay in handlers {
-        if overlay.handle(input) {
-          return true
-        }
+    if !inputs.isEmpty {
+      bufferedInputs.append(contentsOf: inputs)
+
+      if bufferedInputs.count > maximumBufferedInputs {
+        let overflow = bufferedInputs.count - maximumBufferedInputs
+        // Drop the oldest events first so new keystrokes stay responsive.
+        bufferedInputs.removeFirst(overflow)
       }
     }
 
-    return false
+    guard !bufferedInputs.isEmpty else { return false }
+
+    var handledAny     = false
+    var processedCount = 0
+    // Always chew through the newest batch while bounding the backlog so large
+    // bursts can spill into subsequent passes without blocking the UI loop.
+    let passQuota      = max(inputs.count, maximumInputsPerPass)
+    let limit          = min(bufferedInputs.count, passQuota)
+
+    while processedCount < limit {
+
+      if interactiveOverlays.isEmpty {
+        bufferedInputs.removeAll()
+        break
+      }
+
+      let input    = bufferedInputs[processedCount]
+      let handlers = interactiveOverlays
+
+      for overlay in handlers {
+        if overlay.handle(input) {
+          handledAny = true
+        }
+      }
+
+      processedCount += 1
+    }
+
+    if processedCount > 0 {
+      bufferedInputs.removeFirst(processedCount)
+    }
+
+    return handledAny
   }
 
   public func clear() {
@@ -110,6 +150,9 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling {
   private var buttons     : [Button]
   private var activeIndex : Int
   private let onUpdate    : (() -> Void)?
+
+  // Expose the highlight index for regression tests without widening the public surface.
+  var debugActiveButtonIndex: Int { activeIndex }
 
   init(
     message   : String,
