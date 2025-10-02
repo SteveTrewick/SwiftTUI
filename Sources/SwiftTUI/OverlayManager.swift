@@ -377,9 +377,14 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
       let ruleRow   = buttonRow - 1
       let ruleStyle = messageBox.element.style
 
+      let ruleStartCol = bounds.col + 1
+
+      // Align the divider with the message box interior so the footer sits flush with
+      // the frame; keeping the buttons centred preserves their existing placement while
+      // avoiding a ragged left edge.
       sequences += [
         .hideCursor,
-        .moveCursor ( row: ruleRow, col: startCol ),
+        .moveCursor ( row: ruleRow, col: ruleStartCol ),
         .backcolor  ( ruleStyle.background ),
         .forecolor  ( ruleStyle.foreground ),
         .box        ( .horiz(interiorWidth) )
