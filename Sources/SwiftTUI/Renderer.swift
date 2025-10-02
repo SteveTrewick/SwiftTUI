@@ -1,7 +1,7 @@
 
 import Foundation
 
-public struct OutputController {
+public struct Renderer {
 
   public init() {}
 
