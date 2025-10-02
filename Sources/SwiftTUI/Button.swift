@@ -1,4 +1,5 @@
 import Foundation
+import HexDump
 
 // Interactive overlays need a small protocol so they can tap keystrokes that
 // the application loop collects.  The button implements this so the overlay
@@ -64,6 +65,7 @@ public final class Button: Renderable, OverlayInputHandling {
     "[ \(text) ]"
   }
 
+  let hex = HexDump()
   public func render(in size: winsize) -> [AnsiSequence]? {
 
     let rows    = Int(size.ws_row)
@@ -105,13 +107,23 @@ public final class Button: Renderable, OverlayInputHandling {
     // repainting the entire overlay with the highlight colour.
     let activeBackground = shouldHighlight ? highlightBack : baseBackground
     let activeForeground = shouldHighlight ? highlightFore : baseForeground
-    return [
+    
+//    log( String(describing: bounds) )
+    
+    let seqs : [AnsiSequence] =  [
       .moveCursor(row: bounds.row, col: bounds.col),
       .backcolor (activeBackground),
       .forecolor (activeForeground),
       shouldDimHighlight ? .dim(paddedContent) : .text(paddedContent),
-      .resetcolor
+      .resetcolor,
+      .flush,
+      //.cursorPosition
     ]
+//    log ( paddedContent )
+//    log ( "\n" + hex.dump ( seqs.map { $0.description }.joined(separator: "").data(using: .utf8) ?? Data() ) )
+//    log ( "--" )
+    
+    return seqs
   }
 
   @discardableResult
