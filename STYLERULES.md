@@ -1,4 +1,3 @@
-CODING STYLE RULES
   Follow the coding style rules as laid out below, they are marked with //STYLERULE: and there are examples of correct style below them
  
   ```swift
@@ -28,14 +27,14 @@ CODING STYLE RULES
         onActivate         : { action?(); onDismiss() },
         highlightForeground: highlightPalette.foreground,
         highlightBackground: highlightPalette.background,
-        usesDimHighlight    : true,
-        isHighlightActive   : index == 0
+        usesDimHighlight   : true,
+        isHighlightActive  : index == 0
       )
       
   //STYLERULE: function parameters, space after the name and after the list, like this
     func render ( in size: winsize ) -> [AnsiSequence]? { ... }
     
-  //STYLERULE: multiple assignments, alineed with the = of the longest variable ike this
+  //STYLERULE: multiple assignments, alineed with the = of the longest variable like this
       guard let layout    = messageBox.layout(in: size) else { return nil }
       guard var sequences = messageBox.render(in: size) else { return nil }
       
@@ -46,4 +45,8 @@ CODING STYLE RULES
       default     : break
     }
     
+  //STYLERULE: assignment aligment, again
+      let text          = ""
+      let activationKey = TerminalInput
+      let handler       = (() -> Void)?
   ```
