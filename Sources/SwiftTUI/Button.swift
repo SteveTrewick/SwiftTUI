@@ -107,21 +107,15 @@ public final class Button: Renderable, OverlayInputHandling {
     // repainting the entire overlay with the highlight colour.
     let activeBackground = shouldHighlight ? highlightBack : baseBackground
     let activeForeground = shouldHighlight ? highlightFore : baseForeground
-    
-//    log( String(describing: bounds) )
+
     
     let seqs : [AnsiSequence] =  [
       .moveCursor(row: bounds.row, col: bounds.col),
       .backcolor (activeBackground),
       .forecolor (activeForeground),
       shouldDimHighlight ? .dim(paddedContent) : .text(paddedContent),
-      .resetcolor,
-      .flush,
-      //.cursorPosition
     ]
-//    log ( paddedContent )
-//    log ( "\n" + hex.dump ( seqs.map { $0.description }.joined(separator: "").data(using: .utf8) ?? Data() ) )
-//    log ( "--" )
+
     
     return seqs
   }
