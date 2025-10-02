@@ -73,6 +73,12 @@ public struct MenuAction {
       )
     }
   }
+  
+  public static func selectionList ( items: [SelectionListItem] ) -> MenuAction {
+    MenuAction { context, _ in
+      context.overlays.drawSelectionList(items)
+    }
+  }
 
 }
 
