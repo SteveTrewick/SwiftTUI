@@ -217,4 +217,33 @@ final class MessageBoxOverlayRenderingTests: XCTestCase {
             )
         }
     }
+
+    func testMessageBoxAdvancesHighlightForBatchedCursorInputs() {
+        let manager = OverlayManager()
+        let buttons = [
+            MessageBoxButton(text: "Left"),
+            MessageBoxButton(text: "Middle"),
+            MessageBoxButton(text: "Right")
+        ]
+
+        manager.drawMessageBox(
+          "Cursor Walk",
+          row         : 1,
+          col         : 1,
+          style       : ElementStyle(),
+          buttonText  : "OK",
+          activationKey: .RETURN,
+          buttons     : buttons
+        )
+
+        guard let overlay = manager.activeOverlays().last as? MessageBoxOverlay else {
+            return XCTFail("Expected message box overlay")
+        }
+
+        // Batch cursor events to reproduce the regression that skipped later inputs.
+        let handled = manager.handle(inputs: [.cursor(.right), .cursor(.right)])
+
+        XCTAssertTrue(handled, "Expected overlay to handle cursor input batch")
+        XCTAssertEqual(overlay.debugActiveButtonIndex, 2, "Highlight should advance for each cursor event")
+    }
 }
