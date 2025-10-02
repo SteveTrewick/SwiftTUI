@@ -311,7 +311,7 @@ private final class MessageBoxOverlay: Renderable, OverlayInputHandling {
       case .blue   : return .blue
       case .magenta: return .magenta
       case .vyan   : return .cyan
-      case .white  : return .black
+      case .white  : return .white
       case .grey   : return .white
     }
   }
