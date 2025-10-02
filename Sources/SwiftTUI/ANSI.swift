@@ -84,6 +84,8 @@ public enum AnsiSequence /*: CustomStringConvertible*/ {
 
 
   case moveCursor (row:  Int, col:  Int)
+  case saveCursor
+  case restoreCursor
   case hideCursor
   case showCursor
   case cursorPosition
@@ -155,7 +157,9 @@ public enum AnsiSequence /*: CustomStringConvertible*/ {
 
       case .text      (let text) : return text
 
-      case .moveCursor (let row,  let col ): return "\u{001B}[\(row);\(col)H"
+      case .moveCursor   (let row, let col) : return "\u{001B}[\(row);\(col)H"
+      case .saveCursor                     : return "\u{001B}[s"
+      case .restoreCursor                  : return "\u{001B}[u"
       case .hideCursor                     : return "\u{001B}[?25l"
       case .showCursor                     : return "\u{001B}[?25h"
       case .cursorPosition                 : return "\u{001B}[6n"
