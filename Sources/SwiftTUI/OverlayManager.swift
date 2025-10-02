@@ -3,22 +3,22 @@ import Foundation
 
 public final class OverlayManager {
 
-  private var overlays: [Renderable]
-  private var interactiveOverlays: [OverlayInputHandling]
+  private var overlays             : [Renderable]
+  private var interactiveOverlays  : [OverlayInputHandling]
   private var invalidatableOverlays: [OverlayInvalidating]
   // Maintain a short FIFO buffer so overlays can drain bursts over several passes
   // without dropping keystrokes when they are busy repainting.
-  private var bufferedInputs: [TerminalInput.Input]
+  private var bufferedInputs       : [TerminalInput.Input]
 
   private let maximumBufferedInputs = 32
   private let maximumInputsPerPass  = 16
 
   public var onChange: ((Bool) -> Void)? = nil
 
-  public init(overlays: [Renderable] = []) {
-    self.overlays            = overlays
-    self.interactiveOverlays = []
-    self.bufferedInputs      = []
+  public init ( overlays: [Renderable] = [] ) {
+    self.overlays             = overlays
+    self.interactiveOverlays  = []
+    self.bufferedInputs       = []
     self.invalidatableOverlays = []
   }
 
@@ -68,6 +68,37 @@ public final class OverlayManager {
     overlays.append ( overlay )
     interactiveOverlays.append( overlay )
     invalidatableOverlays.append( overlay )
+    onChange?(false)
+  }
+
+
+  public func drawSelectionList (
+    _ items: [SelectionListItem],
+    row      : Int?         = nil,
+    col      : Int?         = nil,
+    style    : ElementStyle = ElementStyle(),
+    onSelect : ((SelectionListItem) -> Void)? = nil,
+    onDismiss: (() -> Void)? = nil
+  ) {
+
+    guard !items.isEmpty else { return }
+
+    let overlay = SelectionListOverlay (
+      items    : items,
+      row      : row,
+      col      : col,
+      style    : style,
+      onSelect : onSelect,
+      onDismiss: { [weak self] in
+        onDismiss?()
+        self?.clear()
+      },
+      onUpdate : { [weak self] in self?.onChange?(false) }
+    )
+
+    overlays.append ( overlay )
+    interactiveOverlays.append ( overlay )
+    invalidatableOverlays.append ( overlay )
     onChange?(false)
   }
 
@@ -450,5 +481,312 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     guard boundsMatch else { return false }
 
     return cached.lines == layout.lines
+  }
+}
+
+
+public struct SelectionListItem {
+
+  public let text    : String
+  public let handler : (() -> Void)?
+
+  public init ( text: String, handler: (() -> Void)? = nil ) {
+    self.text    = text
+    self.handler = handler
+  }
+}
+
+final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInvalidating {
+
+  private let items             : [SelectionListItem]
+  private let row               : Int?
+  private let col               : Int?
+  private let style             : ElementStyle
+  private let onSelect          : ((SelectionListItem) -> Void)?
+  private let onDismiss         : () -> Void
+  private let onUpdate          : (() -> Void)?
+  private let highlightPalette  : (foreground: ANSIForecolor, background: ANSIBackcolor)
+
+  private var activeIndex       : Int
+  private var cachedBounds      : BoxBounds?
+  private var needsFullRedraw   : Bool
+  private var dirtyItemIndices  : Set<Int>
+  private var didRenderLastPass : Bool
+  private var isDismissed       : Bool
+
+  var debugActiveIndex : Int { activeIndex }
+
+  init (
+    items    : [SelectionListItem],
+    row      : Int?,
+    col      : Int?,
+    style    : ElementStyle,
+    onSelect : ((SelectionListItem) -> Void)?,
+    onDismiss: @escaping () -> Void,
+    onUpdate : (() -> Void)?
+  ) {
+
+    self.items             = items
+    self.row               = row
+    self.col               = col
+    self.style             = style
+    self.onSelect          = onSelect
+    self.onDismiss         = onDismiss
+    self.onUpdate          = onUpdate
+    self.activeIndex       = 0
+    self.needsFullRedraw   = true
+    self.dirtyItemIndices  = Set(items.indices)
+    self.cachedBounds      = nil
+    self.didRenderLastPass = false
+    self.isDismissed       = false
+
+    // Reuse the same palette rules as the message box buttons so every overlay
+    // stays visually coherent even when callers customise the base style.
+    self.highlightPalette   = SelectionListOverlay.highlightPalette ( for: style )
+  }
+
+  func invalidateForFullRedraw () {
+    cachedBounds      = nil
+    needsFullRedraw   = true
+    didRenderLastPass = false
+    markAllItemsDirty()
+  }
+
+  func render ( in size: winsize ) -> [AnsiSequence]? {
+
+    guard !items.isEmpty else { return nil }
+
+    guard let bounds = layout ( in: size ) else {
+      cachedBounds      = nil
+      needsFullRedraw   = true
+      didRenderLastPass = false
+      markAllItemsDirty()
+      return nil
+    }
+
+    if !didRenderLastPass {
+      needsFullRedraw = true
+    }
+
+    if SelectionListOverlay.bounds ( bounds, matches: cachedBounds ) == false {
+      cachedBounds    = bounds
+      needsFullRedraw = true
+    }
+
+    var sequences: [AnsiSequence] = []
+
+    if needsFullRedraw {
+
+      let element = BoxElement ( bounds: bounds, style: style )
+
+      guard let boxSequences = Box ( element: element ).render ( in: size ) else {
+        cachedBounds      = nil
+        needsFullRedraw   = true
+        didRenderLastPass = false
+        markAllItemsDirty()
+        return nil
+      }
+
+      sequences += boxSequences
+      needsFullRedraw = false
+      markAllItemsDirty()
+    }
+
+    guard !dirtyItemIndices.isEmpty else {
+      didRenderLastPass = true
+      return sequences
+    }
+
+    let interiorWidth = bounds.width - 2
+    let textStartRow  = bounds.row + 1
+    let textStartCol  = bounds.col + 1
+
+    let baseBackground = style.background
+    let baseForeground = style.foreground
+    let highlightBackground = highlightPalette.background
+    let highlightForeground = highlightPalette.foreground
+
+    for index in dirtyItemIndices.sorted() {
+
+      guard items.indices.contains ( index ) else { continue }
+
+      let label = items[index].text
+      let clampedWidth = max(0, interiorWidth)
+      let paddedLabel  = " " + label
+      let paddingCount = max(0, clampedWidth - paddedLabel.count)
+      let padded = paddedLabel + String(repeating: " ", count: paddingCount)
+
+      let background = index == activeIndex ? highlightBackground : baseBackground
+      let foreground = index == activeIndex ? highlightForeground : baseForeground
+
+      sequences += [
+        .moveCursor(row: textStartRow + index, col: textStartCol),
+        .backcolor(background),
+        .forecolor(foreground),
+        .text(padded)
+      ]
+    }
+
+    dirtyItemIndices.removeAll()
+    didRenderLastPass = true
+
+    return sequences
+  }
+
+  func handle ( _ input: TerminalInput.Input ) -> Bool {
+
+    guard !items.isEmpty else { return false }
+
+    switch input {
+
+      case .cursor(let key) :
+        let previousIndex = activeIndex
+
+        switch key {
+          case .up   :
+            activeIndex = max(0, activeIndex - 1)
+          case .down :
+            activeIndex = min(items.count - 1, activeIndex + 1)
+          default    :
+            return false
+        }
+
+        guard activeIndex != previousIndex else { return false }
+
+        markItemsDirty ( [previousIndex, activeIndex] )
+        onUpdate?()
+        return true
+
+      case .key(let key) :
+        switch key {
+          case .RETURN :
+            activateSelection()
+            return true
+          case .ESC    :
+            dismiss()
+            return true
+          default      :
+            return false
+        }
+
+      case .ascii(let data) :
+        if data.contains ( 0x0d ) {
+          activateSelection()
+          return true
+        }
+        return false
+
+      default     :
+        return false
+    }
+  }
+
+  private func layout ( in size: winsize ) -> BoxBounds? {
+
+    let rows    = Int(size.ws_row)
+    let columns = Int(size.ws_col)
+
+    guard rows > 0 && columns > 0 else { return nil }
+
+    let interiorWidth = SelectionListOverlay.minimumInteriorWidth ( for: items )
+    let width  = interiorWidth + 2
+    let height = items.count + 2
+
+    guard width  <= columns else { return nil }
+    guard height <= rows    else { return nil }
+
+    let top  = row ?? max(1, ((rows    - height) / 2) + 1)
+    let left = col ?? max(1, ((columns - width ) / 2) + 1)
+
+    let bottom = top  + height - 1
+    let right  = left + width  - 1
+
+    guard top    >= 1 else { return nil }
+    guard left   >= 1 else { return nil }
+    guard bottom <= rows else { return nil }
+    guard right  <= columns else { return nil }
+
+    return BoxBounds ( row: top, col: left, width: width, height: height )
+  }
+
+  private func activateSelection () {
+    guard items.indices.contains ( activeIndex ) else { return }
+
+    let item = items[activeIndex]
+    onSelect? ( item )
+    item.handler? ()
+    dismiss()
+  }
+
+  private func dismiss () {
+    guard !isDismissed else { return }
+    isDismissed = true
+    onDismiss()
+    onUpdate?()
+  }
+
+  private func markItemsDirty ( _ indexes: [Int] ) {
+    for index in indexes where items.indices.contains ( index ) {
+      dirtyItemIndices.insert(index)
+    }
+  }
+
+  private func markAllItemsDirty () {
+    dirtyItemIndices = Set(items.indices)
+  }
+
+  private static func minimumInteriorWidth ( for items: [SelectionListItem] ) -> Int {
+    let widest = items.map { $0.text.count }.max() ?? 0
+    return max(widest + 1, 1)
+  }
+
+  private static func highlightPalette ( for style: ElementStyle ) -> (foreground: ANSIForecolor, background: ANSIBackcolor) {
+
+    let highlightBackground = SelectionListOverlay.backcolor ( for: style.foreground )
+    let fallbackForeground  = SelectionListOverlay.forecolor ( for: style.background )
+
+    if highlightBackground == style.background {
+      // When the highlight would blend into the background fall back to white so
+      // the focused row stays visible against darker palettes.
+      return (fallbackForeground, .white)
+    }
+
+    return (fallbackForeground, highlightBackground)
+  }
+
+  private static func backcolor ( for forecolor: ANSIForecolor ) -> ANSIBackcolor {
+    switch forecolor {
+      case .black  : return .black
+      case .red    : return .red
+      case .green  : return .green
+      case .yellow : return .yellow
+      case .blue   : return .blue
+      case .magenta: return .magenta
+      case .cyan   : return .vyan
+      case .white  : return .white
+    }
+  }
+
+  private static func forecolor ( for backcolor: ANSIBackcolor ) -> ANSIForecolor {
+    switch backcolor {
+      case .black  : return .black
+      case .red    : return .red
+      case .green  : return .green
+      case .yellow : return .yellow
+      case .blue   : return .blue
+      case .magenta: return .magenta
+      case .vyan   : return .cyan
+      case .white  : return .white
+      case .grey   : return .white
+    }
+  }
+
+  private static func bounds ( _ bounds: BoxBounds, matches cached: BoxBounds? ) -> Bool {
+    guard let cached = cached else { return false }
+
+    return cached.row    == bounds.row
+        && cached.col    == bounds.col
+        && cached.width  == bounds.width
+        && cached.height == bounds.height
   }
 }

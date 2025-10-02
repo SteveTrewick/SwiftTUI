@@ -308,4 +308,91 @@ final class MessageBoxOverlayRenderingTests: XCTestCase {
             )
         }
     }
+
+    func testSelectionListRendersItemsWithHighlight () {
+        let manager = OverlayManager()
+
+        manager.drawSelectionList (
+          [
+            SelectionListItem ( text: "One" ),
+            SelectionListItem ( text: "Two" )
+          ],
+          row      : 2,
+          col      : 2,
+          style    : ElementStyle ( foreground: .white, background: .black ),
+          onSelect : nil,
+          onDismiss: nil
+        )
+
+        guard let overlay = manager.activeOverlays().last as? SelectionListOverlay else {
+            return XCTFail("Expected selection list overlay")
+        }
+
+        let size = winsize ( ws_row: 12, ws_col: 40, ws_xpixel: 0, ws_ypixel: 0 )
+
+        guard let sequences = overlay.render ( in: size ) else {
+            return XCTFail("Expected render output for selection list overlay")
+        }
+
+        XCTAssertTrue(
+            sequences.contains ( where: { sequence in
+                if case .backcolor(let color) = sequence { return color == .white }
+                return false
+            }),
+            "Active row should use highlight background"
+        )
+
+        let rowStrings = sequences.compactMap { sequence -> String? in
+            if case .text(let text) = sequence { return text }
+            return nil
+        }
+
+        [" One", " Two"].forEach { label in
+            XCTAssertTrue(rowStrings.contains ( label ), "Expected rendered row for \(label)")
+        }
+    }
+
+    func testSelectionListMovesHighlightWithArrowKeys () {
+        let overlay = SelectionListOverlay (
+            items    : [
+                SelectionListItem ( text: "First" ),
+                SelectionListItem ( text: "Second" ),
+                SelectionListItem ( text: "Third" )
+            ],
+            row      : 1,
+            col      : 1,
+            style    : ElementStyle(),
+            onSelect : nil,
+            onDismiss: {},
+            onUpdate : nil
+        )
+
+        let size = winsize ( ws_row: 10, ws_col: 40, ws_xpixel: 0, ws_ypixel: 0 )
+        XCTAssertNotNil(overlay.render ( in: size ), "Initial render should succeed")
+
+        XCTAssertTrue(overlay.handle ( .cursor ( .down ) ), "Down arrow should move highlight")
+        XCTAssertEqual(overlay.debugActiveIndex, 1, "Highlight should advance to the next row")
+
+        XCTAssertTrue(overlay.handle ( .cursor ( .up ) ), "Up arrow should move highlight")
+        XCTAssertEqual(overlay.debugActiveIndex, 0, "Highlight should move back to the first row")
+    }
+
+    func testSelectionListDismissesOnEscape () {
+        var dismissCount = 0
+        let overlay = SelectionListOverlay (
+            items    : [SelectionListItem ( text: "Only" )],
+            row      : 1,
+            col      : 1,
+            style    : ElementStyle(),
+            onSelect : nil,
+            onDismiss: { dismissCount += 1 },
+            onUpdate : nil
+        )
+
+        XCTAssertTrue(overlay.handle ( .key ( .ESC ) ), "ESC should dismiss the overlay")
+        XCTAssertEqual(dismissCount, 1, "Dismiss handler should run once")
+
+        XCTAssertTrue(overlay.handle ( .key ( .ESC ) ), "Further ESC presses are absorbed")
+        XCTAssertEqual(dismissCount, 1, "Dismiss handler should not fire again")
+    }
 }
