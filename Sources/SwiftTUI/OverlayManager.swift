@@ -193,6 +193,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
 
   private let messageBox  : MessageBox
   private let context     : AppContext
+  private let onDismiss   : () -> Void
   private var buttons     : [Button]
   private var activeIndex : Int
   private let onUpdate    : (() -> Void)?
@@ -258,6 +259,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
       minimumInteriorWidth: minimumInteriorWidth
     )
     self.context     = context
+    self.onDismiss   = onDismiss
     self.activeIndex = 0
     self.onUpdate    = onUpdate
     self.cachedLayout = nil
@@ -459,6 +461,14 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
         }
 
         return activeIndex != previousIndex
+
+      case .key(let key):
+        if key == .ESC {
+          // Mirror the selection list overlay so ESC consistently dismisses modal chrome.
+          onDismiss()
+          return true
+        }
+        return buttons[activeIndex].handle(input)
 
       default:
         return buttons[activeIndex].handle(input)
