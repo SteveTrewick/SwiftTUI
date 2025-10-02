@@ -8,8 +8,10 @@ import Foundation
 public class WindowChanges {
   
   
-  private let queue   : DispatchQueue
-  private let source  : DispatchSourceSignal
+  private let queue           : DispatchQueue
+  private let source          : DispatchSourceSignal
+  private var pendingCallback : DispatchWorkItem?
+  private let debounceDelay   : DispatchTimeInterval = .milliseconds(50)
   
   public var size     = winsize()
   public var onChange : ( (winsize) -> Void )? = nil
@@ -26,13 +28,33 @@ public class WindowChanges {
     }
     
     source.setEventHandler { [self] in
+      /*
+        macOS dispatches SIGWINCH in rapid bursts while a user drags the window
+        edges. Without throttling this stream the renderer can be interrupted
+        mid-frame which leaves the screen in a corrupted state. Buffer the
+        changes and only react once the sequence settles.
+      */
       var newsize = winsize()
       if ioctl(STDOUT_FILENO, UInt(TIOCGWINSZ), &newsize) == 0 {
         size = newsize
-        onChange?(newsize)
+
+        pendingCallback?.cancel()
+
+        let work = DispatchWorkItem { [weak self] in
+          guard let strongSelf = self else { return }
+          guard let handler    = strongSelf.onChange else { return }
+
+          DispatchQueue.main.async {
+            // Ensure the resize render runs on the main/render queue with the rest of the UI work.
+            handler(strongSelf.size)
+          }
+        }
+
+        pendingCallback = work
+        queue.asyncAfter(deadline: .now() + debounceDelay, execute: work)
       }
     }
-  
+
   }
   
   
