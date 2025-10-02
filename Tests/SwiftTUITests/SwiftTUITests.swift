@@ -246,4 +246,66 @@ final class MessageBoxOverlayRenderingTests: XCTestCase {
         XCTAssertTrue(handled, "Expected overlay to handle cursor input batch")
         XCTAssertEqual(overlay.debugActiveButtonIndex, 2, "Highlight should advance for each cursor event")
     }
+
+    func testMessageBoxRedrawsButtonsOnlyWhenHighlightChanges() {
+        let manager = OverlayManager()
+
+        manager.drawMessageBox(
+          "Smooth",
+          row         : 1,
+          col         : 1,
+          style       : ElementStyle(),
+          buttonText  : "OK",
+          activationKey: .RETURN,
+          buttons     : [
+            MessageBoxButton(text: "First"),
+            MessageBoxButton(text: "Second")
+          ]
+        )
+
+        guard let overlay = manager.activeOverlays().last as? MessageBoxOverlay else {
+            return XCTFail("Expected message box overlay")
+        }
+
+        let size = winsize(ws_row: 24, ws_col: 80, ws_xpixel: 0, ws_ypixel: 0)
+
+        // Prime the overlay so the initial draw caches the full message box.
+        guard let initialSequences = overlay.render(in: size) else {
+            return XCTFail("Expected initial render output")
+        }
+
+        XCTAssertTrue(initialSequences.contains(where: { sequence in
+            if case .text(let text) = sequence { return text.contains("Smooth") }
+            return false
+        }), "Initial render should include the message body")
+
+        XCTAssertTrue(overlay.handle(.cursor(.right)), "Cursor input should move the highlight")
+
+        guard let updateSequences = overlay.render(in: size) else {
+            return XCTFail("Expected button update output")
+        }
+
+        XCTAssertFalse(updateSequences.contains(where: { sequence in
+            if case .text(let text) = sequence { return text.contains("Smooth") }
+            return false
+        }), "Highlight updates should not repaint the message body")
+
+        let buttonStrings = updateSequences.compactMap { sequence -> String? in
+            switch sequence {
+            case .text(let text):
+                return text
+            case .dim(let text):
+                return text
+            default:
+                return nil
+            }
+        }
+
+        ["[ First ]", "[ Second ]"].forEach { label in
+            XCTAssertTrue(
+                buttonStrings.contains(label),
+                "Expected button redraw for \(label)"
+            )
+        }
+    }
 }
