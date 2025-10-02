@@ -187,17 +187,28 @@ private final class MessageBoxOverlay: Renderable, OverlayInputHandling {
     let availableGap = max(0, interiorWidth - minimumButtonWidths)
     // Prefer to preserve the existing two-column gutter, but collapse it evenly
     // across the row when space runs tight so every button can still render.
-    let spacing    = gapCount > 0 ? min(2, availableGap / gapCount) : 0
-    let totalWidth = minimumButtonWidths + spacing * gapCount
+    let spacing      = gapCount > 0 ? min(2, availableGap / gapCount) : 0
+    let totalWidth   = minimumButtonWidths + spacing * gapCount
     let textStartRow = bounds.row + 1
     let buttonRow    = textStartRow + max(layout.lines.count - 1, 0)
     let startCol     = bounds.col + 1 + max(0, (interiorWidth - totalWidth) / 2)
 
     var currentCol = startCol
-
+    
+    //MARK: debug change
+    // dropped first button to see if one of the dim buttons would render in place,
+    // which they did, so their attribs appear to be sane
+    // this is going to be width or position computation, which sucks, because codex wrote them
+    // and its code is all fugly
+    //for (index, button) in buttons.dropFirst().enumerated() {
     for (index, button) in buttons.enumerated() {
       button.isHighlightActive = (index == activeIndex)
-
+      
+      //DEBUG: observing these, they look sane but buttons dissapear when the height increses, wtf?
+//      log("button row   \(buttonRow)")
+//      log("button col   \(currentCol)")
+//      log("button width \(button.minimumWidth)")
+     
       button.bounds = BoxBounds(
         row   : buttonRow,
         col   : currentCol,
@@ -208,8 +219,9 @@ private final class MessageBoxOverlay: Renderable, OverlayInputHandling {
       if let buttonSequences = button.render(in: size) {
         sequences += buttonSequences
       }
-
+      
       currentCol += button.minimumWidth + spacing
+      //log("current col \(currentCol)") // it won't be this
     }
 
     return sequences
