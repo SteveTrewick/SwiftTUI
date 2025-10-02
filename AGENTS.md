@@ -1,3 +1,5 @@
+Use the Swift 5 toolchain (per AGENTS.md) and confirm with swift --version before running swift build. Report the toolchain version and any diagnostics
+
 
 RULES:
   No swift 6, no async/await.
