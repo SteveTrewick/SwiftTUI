@@ -14,14 +14,10 @@ import Glibc
 public struct AppContext {
 
   var input   : TerminalInputController
-  var output  : OutputController
+  var output  : Renderer
   var overlays: OverlayManager
 
-  public init (
-    input : TerminalInputController = TerminalInputController(),
-    output: OutputController        = OutputController(),
-    overlays: OverlayManager?       = nil
-  ) {
+  public init ( input: TerminalInputController = TerminalInputController(), output: Renderer = Renderer(), overlays: OverlayManager? = nil ) {
     self.input    = input
     self.output   = output
     self.overlays = overlays ?? OverlayManager()
@@ -40,9 +36,8 @@ public struct AppContext {
 
 public struct MenuActionContext {
 
-  // TODO: needs more properties/methods for UI overlay
-  public var app : AppContext
-  public var overlays: OverlayManager { app.overlays }
+  public var app      : AppContext
+  public var overlays : OverlayManager { app.overlays }
 
   public init (app: AppContext ) {
     self.app = app
