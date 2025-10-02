@@ -103,6 +103,7 @@ public final class TerminalApp {
   func process ( _ response: TerminalInput.Response ) {
     switch response {
       case .CUROSR(let row, let col): cursor = Cursor(row: row, col: col)
+      //log( String(describing: cursor) )
     }
   }
   
@@ -116,8 +117,8 @@ public final class TerminalApp {
     
     if everything {
       
-      context.output.send(
-        .cls
+      context.output.send (
+        //.cls
       )
       
       let baseElements: [Renderable] = [
