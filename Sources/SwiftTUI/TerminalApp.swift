@@ -129,6 +129,9 @@ public final class TerminalApp {
     if clearing {
       context.output.send ( .cls )
       renderBaseElements(in: window.size)
+      // Clearing the display invalidates overlay caches so trigger a full
+      // redraw before asking them to render again.
+      context.overlays.invalidateActiveOverlays()
     }
 
     renderOverlayElements(in: window.size)

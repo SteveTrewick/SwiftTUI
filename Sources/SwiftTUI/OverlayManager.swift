@@ -5,6 +5,7 @@ public final class OverlayManager {
 
   private var overlays: [Renderable]
   private var interactiveOverlays: [OverlayInputHandling]
+  private var invalidatableOverlays: [OverlayInvalidating]
   // Maintain a short FIFO buffer so overlays can drain bursts over several passes
   // without dropping keystrokes when they are busy repainting.
   private var bufferedInputs: [TerminalInput.Input]
@@ -18,6 +19,7 @@ public final class OverlayManager {
     self.overlays            = overlays
     self.interactiveOverlays = []
     self.bufferedInputs      = []
+    self.invalidatableOverlays = []
   }
 
 
@@ -65,6 +67,7 @@ public final class OverlayManager {
 
     overlays.append ( overlay )
     interactiveOverlays.append( overlay )
+    invalidatableOverlays.append( overlay )
     onChange?(false)
   }
 
@@ -72,6 +75,12 @@ public final class OverlayManager {
 
   public func activeOverlays() -> [Renderable] {
     overlays
+  }
+
+  public func invalidateActiveOverlays() {
+    for overlay in invalidatableOverlays {
+      overlay.invalidateForFullRedraw()
+    }
   }
 
   public func handle(inputs: [TerminalInput.Input]) -> Bool {
@@ -126,6 +135,7 @@ public final class OverlayManager {
   public func clear() {
     overlays.removeAll()
     interactiveOverlays.removeAll()
+    invalidatableOverlays.removeAll()
     onChange?(true)
   }
 }
@@ -144,7 +154,7 @@ public struct MessageBoxButton {
   }
 }
 
-final class MessageBoxOverlay: Renderable, OverlayInputHandling {
+final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalidating {
 
   private let messageBox  : MessageBox
   private var buttons     : [Button]
@@ -153,6 +163,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling {
   private var cachedLayout: MessageBox.Layout?
   private var needsFullRedraw: Bool
   private var dirtyButtonIndices: Set<Int>
+  private var didRenderLastPass: Bool
 
   // Expose the highlight index for regression tests without widening the public surface.
   var debugActiveButtonIndex: Int { activeIndex }
@@ -189,6 +200,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling {
     self.onUpdate    = onUpdate
     self.cachedLayout = nil
     self.needsFullRedraw = true
+    self.didRenderLastPass = false
 
     // Convert the base element style into a highlight palette so buttons stay
     // visually consistent with the rest of the overlay.
@@ -212,9 +224,26 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling {
     self.dirtyButtonIndices = Set(self.buttons.indices)
   }
 
+  func invalidateForFullRedraw() {
+    cachedLayout     = nil
+    needsFullRedraw  = true
+    didRenderLastPass = false
+    markAllButtonsDirty()
+  }
+
   func render ( in size: winsize ) -> [AnsiSequence]? {
 
-    guard let layout = messageBox.layout(in: size) else { return nil }
+    guard let layout = messageBox.layout(in: size) else {
+      cachedLayout      = nil
+      didRenderLastPass = false
+      needsFullRedraw   = true
+      markAllButtonsDirty()
+      return nil
+    }
+
+    if !didRenderLastPass {
+      needsFullRedraw = true
+    }
 
     // Cache the most recent layout so we can spot geometry changes without
     // forcing a full redraw on every highlight update. The renderer throttles
@@ -228,7 +257,13 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling {
     var sequences: [AnsiSequence] = []
 
     if needsFullRedraw {
-      guard let boxSequences = messageBox.render(in: size) else { return nil }
+      guard let boxSequences = messageBox.render(in: size) else {
+        cachedLayout      = nil
+        didRenderLastPass = false
+        needsFullRedraw   = true
+        markAllButtonsDirty()
+        return nil
+      }
       sequences += boxSequences
       // The dialog body just repainted, so refresh every button to keep their
       // alignment anchored to the new bounds.
@@ -236,7 +271,10 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling {
       needsFullRedraw = false
     }
 
-    guard !buttons.isEmpty else { return sequences }
+    guard !buttons.isEmpty else {
+      didRenderLastPass = true
+      return sequences
+    }
 
     let bounds        = layout.bounds
     let interiorWidth = bounds.width - 2
@@ -249,6 +287,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling {
       // Logging the refusal makes it obvious why callers lose their buttons; the guard only fires when
       // the dialog itself is narrower than the combined button labels so nothing could render safely.
       log("MessageBoxOverlay: skipping buttons, minimum width \(minimumButtonWidths) exceeds interior width \(interiorWidth)")
+      didRenderLastPass = true
       return sequences
     }
 
@@ -294,6 +333,8 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling {
     }
 
     dirtyButtonIndices.removeAll()
+
+    didRenderLastPass = true
 
     return sequences
   }
