@@ -8,6 +8,14 @@ protocol OverlayInputHandling: AnyObject {
   func handle(_ input: TerminalInput.Input) -> Bool
 }
 
+// Overlays that maintain internal caches need a hook so the manager can force a
+// full redraw when the terminal clears the screen.  The manager only calls this
+// when a repaint is unavoidable (window resize, manual clear, etc.) so the
+// overlay can flush any cached geometry before it renders again.
+protocol OverlayInvalidating: AnyObject {
+  func invalidateForFullRedraw()
+}
+
 /// Minimal button rendering that keeps the look consistent with the rest of the
 /// text UI.  The button draws a bracketed label centred within the supplied
 /// bounds and calls through to a handler when its activation key arrives.
