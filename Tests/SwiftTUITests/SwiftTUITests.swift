@@ -479,6 +479,43 @@ final class RendererRenderFrameTests: XCTestCase {
 
         waitForExpectations(timeout: 0.5)
     }
+
+    func testOverlayDismissalClearIncludesBottomRow() {
+        let renderer = Renderer()
+        let size = winsize(ws_row: 6, ws_col: 5, ws_xpixel: 0, ws_ypixel: 0)
+
+        let pipe = Pipe()
+        let originalStdout = dup(STDOUT_FILENO)
+        dup2(pipe.fileHandleForWriting.fileDescriptor, STDOUT_FILENO)
+
+        renderer.renderFrame(
+            base        : [],
+            overlay     : [],
+            in          : size,
+            defaultStyle: ElementStyle(),
+            clearMode   : .overlayDismissal,
+            onFullClear : nil
+        )
+
+        let drainExpectation = expectation(description: "Wait for renderer output")
+        DispatchQueue.main.async {
+            drainExpectation.fulfill()
+        }
+        waitForExpectations(timeout: 1.0)
+
+        fflush(stdout)
+        pipe.fileHandleForWriting.closeFile()
+
+        dup2(originalStdout, STDOUT_FILENO)
+        close(originalStdout)
+
+        let outputData = pipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: outputData, encoding: .utf8) ?? ""
+
+        XCTAssertTrue(output.contains("\u{001B}[s"), "Clear should preserve the caller cursor with save")
+        XCTAssertTrue(output.contains("\u{001B}[u"), "Clear should restore the caller cursor after scrubbing")
+        XCTAssertTrue(output.contains("\u{001B}[5;1H     "), "Overlay dismissal should blank the final row in the overlay region")
+    }
 }
 
 private final class RecordingRenderable: Renderable {
