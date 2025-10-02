@@ -5,13 +5,10 @@ public final class StatusBar : Renderable {
   public var style : ElementStyle
   public var text  : String
   
-  private let output: OutputController
-
-  
-  public init ( text: String, style: ElementStyle, output: OutputController = OutputController() ) {
+ 
+  public init ( text: String, style: ElementStyle ) {
     self.text   = text
     self.style  = style
-    self.output = output
   }
 
   
