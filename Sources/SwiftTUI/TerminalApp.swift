@@ -118,34 +118,57 @@ public final class TerminalApp {
   
   
   func render ( clearing: Bool = true ) {
-    
-    
-      
+
+
+
     context.output.send (
       .forecolor(defaultStyle.foreground),
       .backcolor(defaultStyle.background)
     )
-    
-    //TODO: this is the crux of the redraw problem, we need to track what needs to be redrawn not just clear on every change, this will important later
-    if clearing { context.output.send ( .cls ) }
-    
-    let baseElements: [Renderable] = [
+
+    if clearing {
+      context.output.send ( .cls )
+      renderBaseElements(in: window.size)
+    }
+
+    renderOverlayElements(in: window.size)
+
+    context.output.send (
+      .forecolor(defaultStyle.foreground),
+      .backcolor(defaultStyle.background)
+    )
+
+  }
+
+  private func renderBaseElements(in size: winsize) {
+
+    // The menu bar and status bar rarely change, so keep their redraws scoped to
+    // full refreshes (window resize, initial load, overlay dismissals). This
+    // avoids re-rendering the whole screen for overlay updates.
+    let elements: [Renderable] = [
       menuBar,
-      updateStatusBar(for: window.size)
+      updateStatusBar(for: size)
     ]
+
+    context.output.render (
+      elements: elements,
+      in      : size
+    )
+  }
+
+  private func renderOverlayElements(in size: winsize) {
 
     let overlayElements = context.overlays.activeOverlays()
 
+    guard !overlayElements.isEmpty else { return }
+
+    // Overlays are transient and update frequently, so draw them independently
+    // from the base UI. This lets highlight changes refresh quickly without a
+    // full screen clear.
     context.output.render (
-      elements: baseElements + overlayElements,
-      in      : window.size
+      elements: overlayElements,
+      in      : size
     )
-    
-    context.output.send (
-      .forecolor(defaultStyle.foreground),
-      .backcolor(defaultStyle.background)
-    )
-    
   }
   
   
