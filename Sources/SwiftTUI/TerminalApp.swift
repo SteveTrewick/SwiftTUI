@@ -36,15 +36,19 @@ public final class TerminalApp {
     
     
     // TODO: this is sematically unpleaseant and in the wrong place, we need a new strategy for change tracking and rendering, these probably belong in Renderer
-    self.context.overlays.onChange = { [weak self] shouldClear in
-      self?.render(clearing: shouldClear)
+    // Overlay changes either trigger a light overlay repaint or a DECERA pass when they disappear.
+    self.context.overlays.onChange = { [weak self] change in
+      switch change {
+        case .updated : self?.render(clearMode: .none)
+        case .cleared : self?.render(clearMode: .overlayDismissal)
+      }
     }
     
     
     // hook the window change handler, if the window size changes, we need to redraw
     // basically everything
     self.window.onChange = { [self] size in
-      self.render (clearing: true)
+      self.render (clearMode: .full)
     }
     
     // hook stdin input (keyboard input and xterm messages)
@@ -117,20 +121,20 @@ public final class TerminalApp {
   // for now, just do this.
   
   
-  func render ( clearing: Bool = true ) {
+  func render ( clearMode: Renderer.ClearMode = .full ) {
 
     let size             = window.size
     let statusElement    = updateStatusBar(for: size)
     let baseElements     : [Renderable] = [ menuBar, statusElement ]
     let overlayElements  = context.overlays.activeOverlays()
-    let invalidation     : (() -> Void)? = clearing ? { [context] in context.overlays.invalidateActiveOverlays() } : nil
+    let invalidation     : (() -> Void)? = (clearMode == .full) ? { [context] in context.overlays.invalidateActiveOverlays() } : nil
 
     context.output.renderFrame (
       base        : baseElements,
       overlay     : overlayElements,
       in          : size,
       defaultStyle: defaultStyle,
-      clearing    : clearing,
+      clearMode   : clearMode,
       onFullClear : invalidation
     )
 
@@ -163,7 +167,7 @@ public final class TerminalApp {
   
   
   public func start() {
-    render ( clearing: true )
+    render ( clearMode: .full )
     window.track()
   }
 

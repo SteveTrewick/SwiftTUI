@@ -3,6 +3,12 @@ import Foundation
 
 public struct Renderer {
 
+  public enum ClearMode {
+    case none
+    case full
+    case overlayDismissal
+  }
+
   public init() {}
 
   // use to send ANSI sequences to e.g get responses
@@ -36,6 +42,29 @@ public struct Renderer {
   }
 
 
+  // Clearing a rectangular area allows overlays to refresh portions of the screen without a full CLS.
+  // Xterm supports DECERA which erases the supplied rectangle, replacing all cells with blanks.
+  public func clear ( rectangle: BoxBounds ) {
+
+    guard rectangle.width  > 0 else { return }
+    guard rectangle.height > 0 else { return }
+
+    let top    = rectangle.row
+    let left   = rectangle.col
+    let bottom = rectangle.row + rectangle.height - 1
+    let right  = rectangle.col + rectangle.width  - 1
+
+    send (
+      .eraseRectangularArea(
+        top   : top,
+        left  : left,
+        bottom: bottom,
+        right : right
+      )
+    )
+  }
+
+
   // draw a collection of Renderable elements
   public func render ( elements: [Renderable], in size: winsize  ) {
     
@@ -64,7 +93,7 @@ public struct Renderer {
     }
   }
 
-  public func renderFrame ( base: [Renderable], overlay: [Renderable], in size: winsize, defaultStyle: ElementStyle, clearing: Bool, onFullClear: (() -> Void)? ) {
+  public func renderFrame ( base: [Renderable], overlay: [Renderable], in size: winsize, defaultStyle: ElementStyle, clearMode: ClearMode, onFullClear: (() -> Void)? ) {
 
     // Always restore the default palette before beginning a frame so any element specific colours do not leak
     send (
@@ -72,18 +101,40 @@ public struct Renderer {
       .backcolor(defaultStyle.background)
     )
 
-    if clearing {
-      // When we are clearing we must reset the terminal buffer and redraw our base chrome
-      send ( .cls )
+    switch clearMode {
+      case .none:
+        break
 
-      if !base.isEmpty {
-        render (
-          elements: base,
-          in      : size
-        )
-      }
+      case .full:
+        // A resize or explicit full clear demands a terminal reset so the chrome can be redrawn.
+        send ( .cls )
 
-      onFullClear?()
+        if !base.isEmpty {
+          render (
+            elements: base,
+            in      : size
+          )
+        }
+
+        onFullClear?()
+
+      case .overlayDismissal:
+        // Overlays render between the menu and status rows. When they disappear we punch a DECERA window
+        // through that region so we do not disturb the chrome framing the workspace.
+        let rows    = Int(size.ws_row)
+        let columns = Int(size.ws_col)
+        let height  = rows - 2
+
+        if columns > 0 && height > 0 {
+          clear (
+            rectangle: BoxBounds(
+              row   : 2,
+              col   : 1,
+              width : columns,
+              height: height
+            )
+          )
+        }
     }
 
     if !overlay.isEmpty {

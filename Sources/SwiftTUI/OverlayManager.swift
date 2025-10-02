@@ -13,7 +13,13 @@ public final class OverlayManager {
   private let maximumBufferedInputs = 32
   private let maximumInputsPerPass  = 16
 
-  public var onChange: ((Bool) -> Void)? = nil
+  // Propagate overlay lifecycle events so the renderer can adapt its clearing strategy.
+  public enum Change {
+    case updated
+    case cleared
+  }
+
+  public var onChange: ((Change) -> Void)? = nil
 
   public init ( overlays: [Renderable] = [] ) {
     self.overlays             = overlays
@@ -34,7 +40,7 @@ public final class OverlayManager {
     let box = Box(element: element)
 
     overlays.append ( box )
-    onChange?(false)
+    onChange?( .updated )
   }
 
 
@@ -64,13 +70,13 @@ public final class OverlayManager {
       style    : style,
       buttons  : buttonConfigs,
       onDismiss: { [weak self] in self?.clear() },
-      onUpdate : { [weak self] in self?.onChange?(false) }
+      onUpdate : { [weak self] in self?.onChange?( .updated ) }
     )
 
     overlays.append ( overlay )
     interactiveOverlays.append( overlay )
     invalidatableOverlays.append( overlay )
-    onChange?(false)
+    onChange?( .updated )
   }
 
 
@@ -97,13 +103,13 @@ public final class OverlayManager {
         onDismiss?()
         self?.clear()
       },
-      onUpdate : { [weak self] in self?.onChange?(false) }
+      onUpdate : { [weak self] in self?.onChange?( .updated ) }
     )
 
     overlays.append ( overlay )
     interactiveOverlays.append ( overlay )
     invalidatableOverlays.append ( overlay )
-    onChange?(false)
+    onChange?( .updated )
   }
 
 
@@ -171,7 +177,7 @@ public final class OverlayManager {
     overlays.removeAll()
     interactiveOverlays.removeAll()
     invalidatableOverlays.removeAll()
-    onChange?(true)
+    onChange?( .cleared )
   }
 }
 
