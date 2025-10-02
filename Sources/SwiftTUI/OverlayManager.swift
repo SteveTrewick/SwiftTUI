@@ -754,7 +754,10 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
 
   private static func minimumInteriorWidth ( for items: [SelectionListItem] ) -> Int {
     let widest = items.map { $0.text.count }.max() ?? 0
-    return max(widest + 1, 1)
+    // Provide a trailing space so highlighted rows never touch the right border.
+    // This matches the visual balance of the left padding and keeps the cursor
+    // well clear of the frame when the overlay is repainted.
+    return max(widest + 2, 2)
   }
 
   private static func highlightPalette ( for style: ElementStyle ) -> (foreground: ANSIForecolor, background: ANSIBackcolor) {
