@@ -117,11 +117,11 @@ public struct MessageBox : Renderable {
       let padded = " " + line + String(repeating: " ", count: max(0, textAreaWidth - 1 - line.count))
 
       sequences += [
+        .hideCursor,
         .moveCursor ( row: rowPosition, col: textStartCol ),
         .backcolor  ( boxElement.style.background ),
         .forecolor  ( boxElement.style.foreground ),
         .text       ( padded ),
-        .resetcolor
       ]
     }
 
