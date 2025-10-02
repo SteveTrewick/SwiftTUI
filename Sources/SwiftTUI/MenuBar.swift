@@ -2,17 +2,17 @@ import Foundation
 
 public final class MenuItem : Renderable {
 
-  public var name   : String
-  public var style  : ElementStyle
-  public var action : MenuAction
-  public var context: MenuActionContext
+  public var name    : String
+  public var style   : ElementStyle
+  public var action  : MenuAction
+  public var context : AppContext
   
   private var originRow: Int
   private var originCol: Int
   
   
 
-  public init ( name: String, style: ElementStyle, context: MenuActionContext, action: MenuAction ) {
+  public init ( name: String, style: ElementStyle, context: AppContext, action: MenuAction ) {
     self.name       = name
     self.context    = context
     self.action     = action

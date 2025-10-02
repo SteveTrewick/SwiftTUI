@@ -34,32 +34,22 @@ public struct AppContext {
 }
 
 
-public struct MenuActionContext {
-
-  public var app      : AppContext
-  public var overlays : OverlayManager { app.overlays }
-
-  public init (app: AppContext ) {
-    self.app = app
-  }
-}
-
-public typealias MenuActionExecution = (MenuActionContext, MenuItem) -> Void
+public typealias MenuActionExecution = (AppContext, MenuItem) -> Void
 
 
 public struct MenuAction {
   
   public var execute : MenuActionExecution
-  
+
   public static func logMessage ( _ body: String ) -> MenuAction {
     MenuAction { context, item in
-      context.app.log("\(item.name): \(body)")
+      context.log("\(item.name): \(body)")
     }
   }
 
   public static func box (_ element: BoxElement ) -> MenuAction {
     MenuAction { context, item in
-      context.overlays.drawBox ( element ) 
+      context.overlays.drawBox ( element )
     }
   }
   
