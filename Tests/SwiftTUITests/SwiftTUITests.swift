@@ -171,6 +171,7 @@ final class MessageBoxOverlayRenderingTests: XCTestCase {
 
     func testMessageBoxButtonsRenderWhenSpacingCollapses() {
         let manager = OverlayManager()
+        let context = AppContext(overlays: manager)
         let buttons = [
             MessageBoxButton(text: "YOK"),
             MessageBoxButton(text: "NOK"),
@@ -179,12 +180,13 @@ final class MessageBoxOverlayRenderingTests: XCTestCase {
 
         manager.drawMessageBox(
           "Tight\nDialog",
+          context     : context,
           row         : 2,
           col         : 2,
           style       : ElementStyle(),
           buttonText  : "OK",
           activationKey: .RETURN,
-          buttons     : buttons
+          buttons      : buttons
         )
 
         guard let overlay = manager.activeOverlays().last else {
@@ -220,6 +222,7 @@ final class MessageBoxOverlayRenderingTests: XCTestCase {
 
     func testMessageBoxAdvancesHighlightForBatchedCursorInputs() {
         let manager = OverlayManager()
+        let context = AppContext(overlays: manager)
         let buttons = [
             MessageBoxButton(text: "Left"),
             MessageBoxButton(text: "Middle"),
@@ -228,6 +231,7 @@ final class MessageBoxOverlayRenderingTests: XCTestCase {
 
         manager.drawMessageBox(
           "Cursor Walk",
+          context     : context,
           row         : 1,
           col         : 1,
           style       : ElementStyle(),
@@ -249,9 +253,11 @@ final class MessageBoxOverlayRenderingTests: XCTestCase {
 
     func testMessageBoxRedrawsButtonsOnlyWhenHighlightChanges() {
         let manager = OverlayManager()
+        let context = AppContext(overlays: manager)
 
         manager.drawMessageBox(
           "Smooth",
+          context     : context,
           row         : 1,
           col         : 1,
           style       : ElementStyle(),
@@ -311,12 +317,14 @@ final class MessageBoxOverlayRenderingTests: XCTestCase {
 
     func testSelectionListRendersItemsWithHighlight () {
         let manager = OverlayManager()
+        let context = AppContext(overlays: manager)
 
         manager.drawSelectionList (
           [
             SelectionListItem ( text: "One" ),
             SelectionListItem ( text: "Two" )
           ],
+          context  : context,
           row      : 2,
           col      : 2,
           style    : ElementStyle ( foreground: .white, background: .black ),
@@ -353,12 +361,14 @@ final class MessageBoxOverlayRenderingTests: XCTestCase {
     }
 
     func testSelectionListMovesHighlightWithArrowKeys () {
+        let context = AppContext()
         let overlay = SelectionListOverlay (
             items    : [
                 SelectionListItem ( text: "First" ),
                 SelectionListItem ( text: "Second" ),
                 SelectionListItem ( text: "Third" )
             ],
+            context  : context,
             row      : 1,
             col      : 1,
             style    : ElementStyle(),
@@ -379,8 +389,10 @@ final class MessageBoxOverlayRenderingTests: XCTestCase {
 
     func testSelectionListDismissesOnEscape () {
         var dismissCount = 0
+        let context = AppContext()
         let overlay = SelectionListOverlay (
             items    : [SelectionListItem ( text: "Only" )],
+            context  : context,
             row      : 1,
             col      : 1,
             style    : ElementStyle(),

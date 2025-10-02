@@ -57,16 +57,20 @@ public struct MenuAction {
     MenuAction { context, _ in
       context.overlays.drawMessageBox(
         message,
+        context      : context,
         buttonText   : buttonText,
         activationKey: activationKey,
         buttons      : buttons
       )
     }
   }
-  
+
   public static func selectionList ( items: [SelectionListItem] ) -> MenuAction {
     MenuAction { context, _ in
-      context.overlays.drawSelectionList(items)
+      context.overlays.drawSelectionList(
+        items,
+        context: context
+      )
     }
   }
 
