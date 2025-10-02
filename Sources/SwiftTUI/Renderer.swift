@@ -49,19 +49,28 @@ public struct Renderer {
     guard rectangle.width  > 0 else { return }
     guard rectangle.height > 0 else { return }
 
-    let top    = rectangle.row
-    let left   = rectangle.col
-    let bottom = rectangle.row + rectangle.height - 1
-    let right  = rectangle.col + rectangle.width  - 1
+    let top       = rectangle.row
+    let left      = rectangle.col
+    let width     = rectangle.width
+    let height    = rectangle.height
+    let blankLine = AnsiSequence.repeatChars(" ", count: width)
 
-    send (
-      .eraseRectangularArea(
-        top   : top,
-        left  : left,
-        bottom: bottom,
-        right : right
-      )
-    )
+    // Save and restore the cursor so the caller's active draw position is untouched while
+    // we manually scrub each row with the classic CSI erase primitives.
+    var sequences : [AnsiSequence] = [ .saveCursor ]
+
+    for rowOffset in 0..<height {
+      let row = top + rowOffset
+
+      sequences += [
+        .moveCursor(row: row, col: left),
+        blankLine
+      ]
+    }
+
+    sequences.append ( .restoreCursor )
+
+    send ( .flatten(sequences) )
   }
 
 
