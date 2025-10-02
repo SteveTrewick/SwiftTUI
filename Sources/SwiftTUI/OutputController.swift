@@ -42,13 +42,25 @@ public struct OutputController {
     // we need some way to determine which ones though
     // since we only want to redraw as much of the screen as we need
     
-    DispatchQueue.main.async { [self] in
+    DispatchQueue.main.async {
       for element in elements {
+        
         if let ansi = element.render(in: size) {
-          print( ansi.map { $0.description }.joined(separator: ""), terminator: "" )
+          for seq in ansi {
+
+            print ( seq.description, terminator: "")
+            print ( AnsiSequence.flush.description, terminator: "" ) // do nothing, but it does flush
+            
+            usleep(700)  // without ths, big problems
+                          // seems terminal can't keep up with us
+                          // originally, adding the logging prevented bad output pointing to a timing issue
+          }
+          
+          print ( AnsiSequence.cursorPosition.description, terminator: "" )
         }
+
+
       }
-      send( .cursorPosition )
     }
   }
   
