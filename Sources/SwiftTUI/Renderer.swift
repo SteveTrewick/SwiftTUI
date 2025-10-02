@@ -48,8 +48,8 @@ public struct Renderer {
         if let ansi = element.render(in: size) {
           for seq in ansi {
 
-            print ( seq.description, terminator: "")
-            print ( AnsiSequence.flush.description, terminator: "" ) // do nothing, but it does flush
+            print  ( seq.description, terminator: "")
+            fflush ( stdout )
             
             usleep(700)  // without ths, big problems
                           // seems terminal can't keep up with us
