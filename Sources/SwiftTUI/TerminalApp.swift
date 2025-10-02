@@ -119,61 +119,23 @@ public final class TerminalApp {
   
   func render ( clearing: Bool = true ) {
 
+    let size             = window.size
+    let statusElement    = updateStatusBar(for: size)
+    let baseElements     : [Renderable] = [ menuBar, statusElement ]
+    let overlayElements  = context.overlays.activeOverlays()
+    let invalidation     : (() -> Void)? = clearing ? { [context] in context.overlays.invalidateActiveOverlays() } : nil
 
-
-    context.output.send (
-      .forecolor(defaultStyle.foreground),
-      .backcolor(defaultStyle.background)
-    )
-
-    if clearing {
-      context.output.send ( .cls )
-      renderBaseElements(in: window.size)
-      // Clearing the display invalidates overlay caches so trigger a full
-      // redraw before asking them to render again.
-      context.overlays.invalidateActiveOverlays()
-    }
-
-    renderOverlayElements(in: window.size)
-
-    context.output.send (
-      .forecolor(defaultStyle.foreground),
-      .backcolor(defaultStyle.background)
+    context.output.renderFrame (
+      base        : baseElements,
+      overlay     : overlayElements,
+      in          : size,
+      defaultStyle: defaultStyle,
+      clearing    : clearing,
+      onFullClear : invalidation
     )
 
   }
 
-  private func renderBaseElements(in size: winsize) {
-
-    // The menu bar and status bar rarely change, so keep their redraws scoped to
-    // full refreshes (window resize, initial load, overlay dismissals). This
-    // avoids re-rendering the whole screen for overlay updates.
-    let elements: [Renderable] = [
-      menuBar,
-      updateStatusBar(for: size)
-    ]
-
-    context.output.render (
-      elements: elements,
-      in      : size
-    )
-  }
-
-  private func renderOverlayElements(in size: winsize) {
-
-    let overlayElements = context.overlays.activeOverlays()
-
-    guard !overlayElements.isEmpty else { return }
-
-    // Overlays are transient and update frequently, so draw them independently
-    // from the base UI. This lets highlight changes refresh quickly without a
-    // full screen clear.
-    context.output.render (
-      elements: overlayElements,
-      in      : size
-    )
-  }
-  
   
   private func updateStatusBar(for size: winsize) -> Renderable {
 
