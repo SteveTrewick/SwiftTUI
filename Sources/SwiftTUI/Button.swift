@@ -94,11 +94,11 @@ public final class Button: Renderable, OverlayInputHandling {
                       + displayText
                       + String(repeating: " ", count: rightPadding)
 
-    let baseBackground   = style.background
-    let baseForeground   = style.foreground
-    let highlightBack    = highlightBackground ?? baseBackground
-    let highlightFore    = highlightForeground ?? baseForeground
-    let shouldHighlight  = isHighlightActive
+    let baseBackground     = style.background
+    let baseForeground     = style.foreground
+    let highlightBack      = highlightBackground ?? baseBackground
+    let highlightFore      = highlightForeground ?? baseForeground
+    let shouldHighlight    = isHighlightActive
     let shouldDimHighlight = usesDimHighlight && !shouldHighlight
 
     // The highlight palette keeps overlays visually coherent without forcing
