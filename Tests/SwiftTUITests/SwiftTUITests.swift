@@ -355,7 +355,7 @@ final class MessageBoxOverlayRenderingTests: XCTestCase {
             return nil
         }
 
-        [" One", " Two"].forEach { label in
+        [" One ", " Two "].forEach { label in
             XCTAssertTrue(rowStrings.contains ( label ), "Expected rendered row for \(label)")
         }
     }
