@@ -82,8 +82,13 @@ public struct MessageBox : Renderable {
     guard width  <= columns else { return nil }
     guard height <= rows    else { return nil }
 
-    let top  = row ?? max(1, ((rows    - height) / 2) + 1)
-    let left = col ?? max(1, ((columns - width ) / 2) + 1)
+    let top          = row ?? max(1, ((rows    - height) / 2) + 1)
+    let proposedLeft = col ?? max(1, ((columns - width ) / 2) + 1)
+    // Clamp the left edge so oversized button boxes can still render when callers
+    // pin the dialog near the right edge. Without this the wider frame would fall
+    // off-screen and the overlay would refuse to render entirely.
+    let maxLeft      = max(1, columns - width + 1)
+    let left         = min(max(1, proposedLeft), maxLeft)
 
     let bottom = top  + height - 1
     let right  = left + width  - 1

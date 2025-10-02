@@ -201,14 +201,15 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
   private var dirtyButtonIndices: Set<Int>
   private var didRenderLastPass: Bool
 
-  // Lay out the button box relative to the outer border so we always preserve a
-  // blank row above the divider, a row of padding above and below the buttons,
-  // and a final gutter before the dialog footer. Expressing these as offsets
-  // keeps the maths readable when the bounds shift at runtime.
-  private static let bottomGutterOffset    = 1
-  private static let buttonRowOffset       = bottomGutterOffset + 1
-  private static let buttonTopBorderOffset = buttonRowOffset + 2
-  private static let trailingBlankLines    = buttonTopBorderOffset + 1
+  // Lay out the button container relative to the outer border so we can centre
+  // a dedicated button box without leaving stray padding rows. The caller wants
+  // the controls tightly framed, so the top border sits directly under the last
+  // line of text and the bottom border meets the dialog's footer.
+  private static let buttonBottomBorderOffset = 1
+  private static let buttonRowOffset          = buttonBottomBorderOffset + 1
+  private static let buttonTopBorderOffset    = buttonRowOffset + 1
+  private static let buttonContainerHeight    = 3
+  private static let trailingBlankLines       = buttonTopBorderOffset
 
   // Expose the highlight index for regression tests without widening the public surface.
   var debugActiveButtonIndex: Int { activeIndex }
@@ -231,9 +232,10 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
 
     if !buttons.isEmpty {
 
-      // Reserve trailing rows for the button container so we can draw a guttered
-      // divider above the controls. Doing this here keeps the geometry stable
-      // regardless of the caller's message length.
+      // Reserve trailing rows for the button container so the box can sit flush
+      // against the message body without leaking blank padding. Baking this
+      // into the message string keeps the geometry stable regardless of the
+      // caller's copy length and lets us render the button frame as an overlay.
       var trailingNewlines = 0
       for character in body.reversed() {
         if character == "\n" {
@@ -327,6 +329,8 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
 
     var sequences: [AnsiSequence] = []
 
+    let isFullRedraw = needsFullRedraw
+
     if needsFullRedraw {
       guard let boxSequences = messageBox.render(in: size) else {
         cachedLayout      = nil
@@ -336,16 +340,6 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
         return nil
       }
       sequences += boxSequences
-
-      if !buttons.isEmpty, let divider = MessageBoxOverlay.buttonDividerSequences(
-        in    : layout.bounds,
-        style : messageBox.element.style
-      ) {
-        sequences += divider
-      }
-      // The dialog body just repainted, so refresh every button to keep their
-      // alignment anchored to the new bounds.
-      markAllButtonsDirty()
       needsFullRedraw = false
     }
 
@@ -360,24 +354,43 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     let minimumButtonWidths = buttons.reduce(0) { $0 + $1.minimumWidth }
     let gapCount            = max(buttons.count - 1, 0)
 
+    let maxContainerInteriorWidth = max(0, interiorWidth - 2)
 
-    guard minimumButtonWidths <= interiorWidth else {
+    guard minimumButtonWidths <= maxContainerInteriorWidth else {
       // Logging the refusal makes it obvious why callers lose their buttons; the guard only fires when
-      // the dialog itself is narrower than the combined button labels so nothing could render safely.
-      log("MessageBoxOverlay: skipping buttons, minimum width \(minimumButtonWidths) exceeds interior width \(interiorWidth)")
+      // the dialog itself is narrower than the framed button row so nothing could render safely.
+      log("MessageBoxOverlay: skipping buttons, minimum width \(minimumButtonWidths) exceeds interior width \(maxContainerInteriorWidth)")
       didRenderLastPass = true
       return sequences
     }
 
-
-    let availableGap = max(0, interiorWidth - minimumButtonWidths)
+    let availableGap = max(0, maxContainerInteriorWidth - minimumButtonWidths)
     // Prefer to preserve the existing two-column gutter, but collapse it evenly
     // across the row when space runs tight so every button can still render.
     let spacing      = gapCount > 0 ? min(2, availableGap / gapCount) : 0
     let totalWidth   = minimumButtonWidths + spacing * gapCount
     let outerBottomRow = bounds.row + bounds.height - 1
     let buttonRow      = outerBottomRow - MessageBoxOverlay.buttonRowOffset
-    let startCol       = bounds.col + 1 + max(0, (interiorWidth - totalWidth) / 2)
+    let buttonBoxWidth = totalWidth + 2
+    let buttonBoxCol   = bounds.col + 1 + max(0, (interiorWidth - buttonBoxWidth) / 2)
+    let buttonBoxBounds = BoxBounds(
+      row   : outerBottomRow - MessageBoxOverlay.buttonTopBorderOffset,
+      col   : buttonBoxCol,
+      width : buttonBoxWidth,
+      height: MessageBoxOverlay.buttonContainerHeight
+    )
+    let startCol = buttonBoxBounds.col + 1
+
+    if isFullRedraw {
+      // Repaint the nested button box so the controls stay visually grouped
+      // even when the dialog resizes around them.
+      if let buttonBoxSequences = Box(element: BoxElement(bounds: buttonBoxBounds, style: messageBox.element.style)).render(in: size) {
+        sequences += buttonBoxSequences
+      }
+      // The dialog body just repainted, so refresh every button to keep their
+      // alignment anchored to the new bounds.
+      markAllButtonsDirty()
+    }
 
     var currentCol = startCol
     
@@ -447,28 +460,6 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     }
   }
 
-  private static func buttonDividerSequences ( in bounds: BoxBounds, style: ElementStyle ) -> [AnsiSequence]? {
-
-    let interiorWidth = bounds.width - 2
-    guard interiorWidth > 0 else { return nil }
-
-    let dividerRow = bounds.row + bounds.height - 1 - buttonTopBorderOffset
-    guard dividerRow > bounds.row else { return nil }
-
-    let startCol = bounds.col + 1
-
-    // Repaint the divider with a simple horizontal rule so the existing side
-    // borders continue to frame the controls. Reusing the current colours keeps
-    // the button well visually tied to the parent dialog.
-    return [
-      .hideCursor,
-      .moveCursor ( row: dividerRow, col: startCol ),
-      .backcolor  ( style.background ),
-      .forecolor  ( style.foreground ),
-      .box        ( .horiz(interiorWidth) ),
-    ]
-  }
-
   private static func highlightPalette(for style: ElementStyle) -> (foreground: ANSIForecolor, background: ANSIBackcolor) {
 
     let highlightBackground = MessageBoxOverlay.backcolor(for: style.foreground)
@@ -492,8 +483,9 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     }
 
     // The message body can wrap but the controls cannot vanish, so favour the
-    // button row when reserving space for the overlay.
-    return labelWidth
+    // button row when reserving space for the overlay. Add two columns so the
+    // framed button container fits without crushing the labels.
+    return labelWidth + 2
   }
 
   private static func buttonWidth(for text: String) -> Int {
