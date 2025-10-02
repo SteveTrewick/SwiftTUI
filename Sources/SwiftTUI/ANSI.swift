@@ -105,8 +105,6 @@ public enum AnsiSequence /*: CustomStringConvertible*/ {
   case repeatChars (String, count: Int)
   case flatten     ([AnsiSequence])
   
-  
-  case flush
   case resetForeground
   case resetBackground
   case resetFGBG
@@ -167,7 +165,6 @@ public enum AnsiSequence /*: CustomStringConvertible*/ {
       case .normBuffer                     : return "\u{001B}[?1049l"
       case .setTermSize(let rows, let cols): return "\u{001B}[8;\(rows);\(cols)t"
       
-      case .flush : fflush(stdout); return "" // that's nasty
     }
   }
   
