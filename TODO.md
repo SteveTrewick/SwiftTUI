@@ -5,7 +5,7 @@
 ### Immediate Next Step
 1. Establish the runtime services that `MenuAction` needs so actions can do more than log text.
    * Introduce an `OverlayManager` protocol and a basic overlay type (for example, a message box) that conforms to the existing `Renderable` pipeline.
-   * Expand `MenuActionContext` beyond `AppContext` so actions can request overlay presentation and issue output updates without owning terminal objects themselves.
+   * Expand `AppContext` so actions can request overlay presentation and issue output updates without owning terminal objects themselves.
    * Update `TerminalApp` to assemble the context on demand—right before dispatching an action—so every invocation observes the latest window size, overlay stack, and output controller state.
 
 ### Follow-Up Tasks
