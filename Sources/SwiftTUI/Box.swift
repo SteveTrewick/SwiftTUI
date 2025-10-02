@@ -71,13 +71,13 @@ public struct Box : Renderable {
     guard right  <= columns else { return nil }
 
     return [
+      .hideCursor,
       .moveCursor(row: top, col: left),
         .backcolor (element.style.background),
         .forecolor (element.style.foreground),
         .box   (.tlc),
         .box   (.horiz(element.bounds.width - 2)),
         .box   (.trc),
-        //.resetcolor,
 
       .repeatRow(
         col: left,
@@ -87,12 +87,10 @@ public struct Box : Renderable {
           .backcolor (element.style.background),
           .forecolor (element.style.foreground),
           .box   (.vert),
-          //.resetcolor,
           .repeatChars(" ", count: element.bounds.width - 2),
           .backcolor (element.style.background),
           .forecolor (element.style.foreground),
           .box   (.vert),
-          //.resetcolor,
         ]
       ),
 
@@ -102,8 +100,6 @@ public struct Box : Renderable {
         .box   (.blc),
         .box   (.horiz(element.bounds.width - 2)),
         .box   (.brc),
-        //.resetcolor,
-        //.hideCursor // for some reason it cmes back
     ]
   }
 }
