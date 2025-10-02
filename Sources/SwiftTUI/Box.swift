@@ -77,7 +77,7 @@ public struct Box : Renderable {
         .box   (.tlc),
         .box   (.horiz(element.bounds.width - 2)),
         .box   (.trc),
-        .resetcolor,
+        //.resetcolor,
 
       .repeatRow(
         col: left,
@@ -87,12 +87,12 @@ public struct Box : Renderable {
           .backcolor (element.style.background),
           .forecolor (element.style.foreground),
           .box   (.vert),
-          .resetcolor,
+          //.resetcolor,
           .repeatChars(" ", count: element.bounds.width - 2),
           .backcolor (element.style.background),
           .forecolor (element.style.foreground),
           .box   (.vert),
-          .resetcolor,
+          //.resetcolor,
         ]
       ),
 
@@ -102,8 +102,8 @@ public struct Box : Renderable {
         .box   (.blc),
         .box   (.horiz(element.bounds.width - 2)),
         .box   (.brc),
-        .resetcolor,
-        .hideCursor // for some reason it cmes back
+        //.resetcolor,
+        //.hideCursor // for some reason it cmes back
     ]
   }
 }
