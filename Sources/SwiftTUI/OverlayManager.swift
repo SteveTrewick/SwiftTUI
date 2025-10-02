@@ -201,6 +201,15 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
   private var dirtyButtonIndices: Set<Int>
   private var didRenderLastPass: Bool
 
+  // Lay out the button box relative to the outer border so we always preserve a
+  // blank row above the divider, a row of padding above and below the buttons,
+  // and a final gutter before the dialog footer. Expressing these as offsets
+  // keeps the maths readable when the bounds shift at runtime.
+  private static let bottomGutterOffset    = 1
+  private static let buttonRowOffset       = bottomGutterOffset + 1
+  private static let buttonTopBorderOffset = buttonRowOffset + 2
+  private static let trailingBlankLines    = buttonTopBorderOffset + 1
+
   // Expose the highlight index for regression tests without widening the public surface.
   var debugActiveButtonIndex: Int { activeIndex }
 
@@ -219,7 +228,26 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     if !body.hasSuffix("\n") {
       body += "\n"
     }
-    body += "\n"
+
+    if !buttons.isEmpty {
+
+      // Reserve trailing rows for the button container so we can draw a guttered
+      // divider above the controls. Doing this here keeps the geometry stable
+      // regardless of the caller's message length.
+      var trailingNewlines = 0
+      for character in body.reversed() {
+        if character == "\n" {
+          trailingNewlines += 1
+          continue
+        }
+        break
+      }
+
+      if trailingNewlines < MessageBoxOverlay.trailingBlankLines {
+        let shortfall = MessageBoxOverlay.trailingBlankLines - trailingNewlines
+        body += String(repeating: "\n", count: shortfall)
+      }
+    }
 
     let minimumInteriorWidth = MessageBoxOverlay.minimumInteriorWidth(for: buttons)
 
@@ -308,6 +336,13 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
         return nil
       }
       sequences += boxSequences
+
+      if !buttons.isEmpty, let divider = MessageBoxOverlay.buttonDividerSequences(
+        in    : layout.bounds,
+        style : messageBox.element.style
+      ) {
+        sequences += divider
+      }
       // The dialog body just repainted, so refresh every button to keep their
       // alignment anchored to the new bounds.
       markAllButtonsDirty()
@@ -340,9 +375,9 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     // across the row when space runs tight so every button can still render.
     let spacing      = gapCount > 0 ? min(2, availableGap / gapCount) : 0
     let totalWidth   = minimumButtonWidths + spacing * gapCount
-    let textStartRow = bounds.row + 1
-    let buttonRow    = textStartRow + max(layout.lines.count - 1, 0)
-    let startCol     = bounds.col + 1 + max(0, (interiorWidth - totalWidth) / 2)
+    let outerBottomRow = bounds.row + bounds.height - 1
+    let buttonRow      = outerBottomRow - MessageBoxOverlay.buttonRowOffset
+    let startCol       = bounds.col + 1 + max(0, (interiorWidth - totalWidth) / 2)
 
     var currentCol = startCol
     
@@ -410,6 +445,28 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
       default:
         return buttons[activeIndex].handle(input)
     }
+  }
+
+  private static func buttonDividerSequences ( in bounds: BoxBounds, style: ElementStyle ) -> [AnsiSequence]? {
+
+    let interiorWidth = bounds.width - 2
+    guard interiorWidth > 0 else { return nil }
+
+    let dividerRow = bounds.row + bounds.height - 1 - buttonTopBorderOffset
+    guard dividerRow > bounds.row else { return nil }
+
+    let startCol = bounds.col + 1
+
+    // Repaint the divider with a simple horizontal rule so the existing side
+    // borders continue to frame the controls. Reusing the current colours keeps
+    // the button well visually tied to the parent dialog.
+    return [
+      .hideCursor,
+      .moveCursor ( row: dividerRow, col: startCol ),
+      .backcolor  ( style.background ),
+      .forecolor  ( style.foreground ),
+      .box        ( .horiz(interiorWidth) ),
+    ]
   }
 
   private static func highlightPalette(for style: ElementStyle) -> (foreground: ANSIForecolor, background: ANSIBackcolor) {
