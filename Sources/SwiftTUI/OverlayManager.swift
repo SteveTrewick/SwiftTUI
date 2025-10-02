@@ -104,7 +104,7 @@ public struct MessageBoxButton {
   }
 }
 
-private final class MessageBoxOverlay: Renderable, OverlayInputHandling {
+final class MessageBoxOverlay: Renderable, OverlayInputHandling {
 
   private let messageBox  : MessageBox
   private var buttons     : [Button]
