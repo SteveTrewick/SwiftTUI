@@ -150,6 +150,9 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling {
   private var buttons     : [Button]
   private var activeIndex : Int
   private let onUpdate    : (() -> Void)?
+  private var cachedLayout: MessageBox.Layout?
+  private var needsFullRedraw: Bool
+  private var dirtyButtonIndices: Set<Int>
 
   // Expose the highlight index for regression tests without widening the public surface.
   var debugActiveButtonIndex: Int { activeIndex }
@@ -184,6 +187,8 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling {
     )
     self.activeIndex = 0
     self.onUpdate    = onUpdate
+    self.cachedLayout = nil
+    self.needsFullRedraw = true
 
     // Convert the base element style into a highlight palette so buttons stay
     // visually consistent with the rest of the overlay.
@@ -203,12 +208,33 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling {
         isHighlightActive   : index == 0
       )
     }
+
+    self.dirtyButtonIndices = Set(self.buttons.indices)
   }
 
   func render ( in size: winsize ) -> [AnsiSequence]? {
 
-    guard let layout    = messageBox.layout(in: size) else { return nil }
-    guard var sequences = messageBox.render(in: size) else { return nil }
+    guard let layout = messageBox.layout(in: size) else { return nil }
+
+    // Cache the most recent layout so we can spot geometry changes without
+    // forcing a full redraw on every highlight update. The renderer throttles
+    // its output with `usleep`, so avoiding redundant work keeps navigation
+    // responsive.
+    if !MessageBoxOverlay.layout(layout, matches: cachedLayout) {
+      cachedLayout    = layout
+      needsFullRedraw = true
+    }
+
+    var sequences: [AnsiSequence] = []
+
+    if needsFullRedraw {
+      guard let boxSequences = messageBox.render(in: size) else { return nil }
+      sequences += boxSequences
+      // The dialog body just repainted, so refresh every button to keep their
+      // alignment anchored to the new bounds.
+      markAllButtonsDirty()
+      needsFullRedraw = false
+    }
 
     guard !buttons.isEmpty else { return sequences }
 
@@ -259,13 +285,15 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling {
         height: 1
       )
 
-      if let buttonSequences = button.render(in: size) {
+      if dirtyButtonIndices.contains(index), let buttonSequences = button.render(in: size) {
         sequences += buttonSequences
       }
-      
+
       currentCol += button.minimumWidth + spacing
       //log("current col \(currentCol)") // it won't be this
     }
+
+    dirtyButtonIndices.removeAll()
 
     return sequences
   }
@@ -288,6 +316,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling {
         }
 
         if activeIndex != previousIndex {
+          markButtonsDirty([previousIndex, activeIndex])
           onUpdate?()
           return true
         }
@@ -357,5 +386,28 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling {
       case .white  : return .white
       case .grey   : return .white
     }
+  }
+
+  private func markButtonsDirty(_ indexes: [Int]) {
+    for index in indexes where buttons.indices.contains(index) {
+      dirtyButtonIndices.insert(index)
+    }
+  }
+
+  private func markAllButtonsDirty() {
+    dirtyButtonIndices = Set(buttons.indices)
+  }
+
+  private static func layout(_ layout: MessageBox.Layout, matches cached: MessageBox.Layout?) -> Bool {
+    guard let cached = cached else { return false }
+
+    let boundsMatch = cached.bounds.row    == layout.bounds.row
+                   && cached.bounds.col    == layout.bounds.col
+                   && cached.bounds.width  == layout.bounds.width
+                   && cached.bounds.height == layout.bounds.height
+
+    guard boundsMatch else { return false }
+
+    return cached.lines == layout.lines
   }
 }
