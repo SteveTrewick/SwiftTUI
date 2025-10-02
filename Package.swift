@@ -31,6 +31,7 @@ let package = Package(
             dependencies: [
                 .product(name: "Trace",            package: "Trace"),
                 .product(name: "PosixInputStream", package: "PosixInputStream"),
+                .product(name: "HexDump",          package: "HexDump")
                 
             ]),
         .testTarget(
