@@ -14,33 +14,37 @@ public final class TerminalApp {
     var col : Int
   }
   
-  private let window    : WindowChanges
-  private let statusBar : StatusBar
-  private let menuBar   : MenuBar
-  private let context   : AppContext
-  private var cursor    : Cursor
+  private let window       : WindowChanges
+  private let statusBar    : StatusBar
+  private let menuBar      : MenuBar
+  private let context      : AppContext
+  private var cursor       : Cursor
+  private var defaultStyle : ElementStyle
   
   private var awaitingMenuSelection: Bool
   
-  public init ( menuItems: [MenuItem], context: AppContext, style: ElementStyle, window: WindowChanges = WindowChanges() )
+  public init ( menuBar: MenuBar, statusBar: StatusBar, context: AppContext, defaultStyle: ElementStyle, window: WindowChanges = WindowChanges() )
   {
     self.cursor                 = Cursor(row: 0, col: 0)
     self.window                 = window
+    self.defaultStyle           = defaultStyle
     self.context                = context
-    self.statusBar              = StatusBar ( text: "", style: style, output: context.output )
-    self.menuBar                = MenuBar   ( items: menuItems, style: style )
+    self.statusBar              = statusBar
+    self.menuBar                = menuBar
     self.awaitingMenuSelection  = false
 
-    // hmm
+    
+    
+    // TODO: this is sematically unpleaseant and in the wrong place, we need a new strategy for change tracking and rendering, these probably belong in Renderer
     self.context.overlays.onChange = { [weak self] in
-      self?.render(everything: true)
+      self?.render(clearing: true)
     }
     
     
     // hook the window change handler, if the window size changes, we need to redraw
     // basically everything
     self.window.onChange = { [self] size in
-      self.render (everything: true)
+      self.render (clearing: true)
     }
     
     // hook stdin input (keyboard input and xterm messages)
@@ -103,7 +107,7 @@ public final class TerminalApp {
   func process ( _ response: TerminalInput.Response ) {
     switch response {
       case .CUROSR(let row, let col): cursor = Cursor(row: row, col: col)
-      //log( String(describing: cursor) )
+                                      log( String(describing: cursor) )
     }
   }
   
@@ -113,27 +117,35 @@ public final class TerminalApp {
   // for now, just do this.
   
   
-  func render ( everything: Bool = true ) {
+  func render ( clearing: Bool = true ) {
     
-    if everything {
-      
-      context.output.send (
-        //.cls
-      )
-      
-      let baseElements: [Renderable] = [
-        menuBar,
-        updateStatusBar(for: window.size)
-      ]
-
-      let overlayElements = context.overlays.activeOverlays()
-
-      context.output.render (
-        elements: baseElements + overlayElements,
-        in      : window.size
-      )
     
-    }
+      
+    context.output.send (
+      .forecolor(defaultStyle.foreground),
+      .backcolor(defaultStyle.background)
+    )
+    
+    //TODO: this is the crux of the redraw problem, we need to track what needs to be redrawn not just clear on every change, this will important later
+    if clearing { context.output.send ( .cls ) }
+    
+    let baseElements: [Renderable] = [
+      menuBar,
+      updateStatusBar(for: window.size)
+    ]
+
+    let overlayElements = context.overlays.activeOverlays()
+
+    context.output.render (
+      elements: baseElements + overlayElements,
+      in      : window.size
+    )
+    
+    context.output.send (
+      .forecolor(defaultStyle.foreground),
+      .backcolor(defaultStyle.background)
+    )
+    
   }
   
   
@@ -163,7 +175,7 @@ public final class TerminalApp {
   
   
   public func start() {
-    render ( everything: true )
+    render ( clearing: true )
     window.track()
   }
 
