@@ -67,6 +67,7 @@ public final class MenuItem : Renderable {
     // attributes that define this item's visual style. These must precede any
     // text so the glyphs inherit the intended foreground/background pairing.
     var sequences: [AnsiSequence] = [
+      .hideCursor,
       .moveCursor ( row: originRow, col: originCol ),
       .backcolor  ( style.background ),
       .forecolor  ( style.foreground )
@@ -107,9 +108,7 @@ public final class MenuItem : Renderable {
       remaining -= trailingSpaceCount
     }
 
-    // Restore the caller's color configuration so subsequent drawing routines
-    // are not forced to undo our styling choices.
-    sequences.append(.resetcolor)
+    //sequences.append(.resetFGBG)
 
     return sequences
   }
