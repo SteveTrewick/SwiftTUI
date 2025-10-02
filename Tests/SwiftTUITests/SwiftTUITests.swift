@@ -421,7 +421,7 @@ final class RendererRenderFrameTests: XCTestCase {
             overlay     : [],
             in          : size,
             defaultStyle: ElementStyle(),
-            clearing    : true,
+            clearMode   : .full,
             onFullClear : { expectation.fulfill() }
         )
 
@@ -447,11 +447,37 @@ final class RendererRenderFrameTests: XCTestCase {
             overlay     : [overlayElement],
             in          : size,
             defaultStyle: ElementStyle(),
-            clearing    : true,
+            clearMode   : .full,
             onFullClear : nil
         )
 
         waitForExpectations(timeout: 1.0)
+    }
+
+    func testOverlayDismissalSkipsFullClear() {
+        let renderer = Renderer()
+        let size = winsize(ws_row: 24, ws_col: 80, ws_xpixel: 0, ws_ypixel: 0)
+
+        let baseExpectation = expectation(description: "Base should not rerender on overlay clear")
+        baseExpectation.isInverted = true
+
+        let invalidationExpectation = expectation(description: "Overlay invalidation should not run for overlay-only clear")
+        invalidationExpectation.isInverted = true
+
+        let baseElement = RecordingRenderable {
+            baseExpectation.fulfill()
+        }
+
+        renderer.renderFrame(
+            base        : [baseElement],
+            overlay     : [],
+            in          : size,
+            defaultStyle: ElementStyle(),
+            clearMode   : .overlayDismissal,
+            onFullClear : { invalidationExpectation.fulfill() }
+        )
+
+        waitForExpectations(timeout: 0.5)
     }
 }
 
