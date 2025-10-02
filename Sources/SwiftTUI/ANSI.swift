@@ -64,7 +64,7 @@ public enum UnicodeBox {
 // add more as necessary, we also need a custom color type
 // because thats not enough colors.
 
-public enum AnsiSequence : CustomStringConvertible {
+public enum AnsiSequence /*: CustomStringConvertible*/ {
   
   
   case cls
@@ -105,6 +105,8 @@ public enum AnsiSequence : CustomStringConvertible {
   case repeatChars (String, count: Int)
   case flatten     ([AnsiSequence])
   
+  
+  case flush
   
   public var description: String {
     
@@ -158,6 +160,7 @@ public enum AnsiSequence : CustomStringConvertible {
       case .normBuffer                     : return "\u{001B}[?1049l"
       case .setTermSize(let rows, let cols): return "\u{001B}[8;\(rows);\(cols)t"
       
+      case .flush : fflush(stdout); return "" // that's nasty
     }
   }
   
