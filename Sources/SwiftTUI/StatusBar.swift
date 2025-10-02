@@ -27,11 +27,11 @@ public final class StatusBar : Renderable {
     let paddedText   = visibleText + String(repeating: " ", count: paddingCount)
 
     return [
+      .hideCursor,
       .moveCursor ( row: row, col: 1 ),
       .backcolor  ( style.background ),
       .forecolor  ( style.foreground ),
       .text       ( paddedText ),
-      .resetcolor
     ]
   }
 }
