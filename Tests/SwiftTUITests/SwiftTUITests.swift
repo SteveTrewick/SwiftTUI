@@ -408,3 +408,64 @@ final class MessageBoxOverlayRenderingTests: XCTestCase {
         XCTAssertEqual(dismissCount, 1, "Dismiss handler should not fire again")
     }
 }
+
+final class RendererRenderFrameTests: XCTestCase {
+
+    func testRenderFrameInvokesOverlayInvalidationOnClear() {
+        let renderer = Renderer()
+        let size = winsize(ws_row: 24, ws_col: 80, ws_xpixel: 0, ws_ypixel: 0)
+        let expectation = expectation(description: "Expected overlay invalidation on clear")
+
+        renderer.renderFrame(
+            base        : [],
+            overlay     : [],
+            in          : size,
+            defaultStyle: ElementStyle(),
+            clearing    : true,
+            onFullClear : { expectation.fulfill() }
+        )
+
+        waitForExpectations(timeout: 1.0)
+    }
+
+    func testRenderFrameRendersBaseAndOverlayElements() {
+        let renderer = Renderer()
+        let size = winsize(ws_row: 24, ws_col: 80, ws_xpixel: 0, ws_ypixel: 0)
+        let expectation = expectation(description: "Expected both base and overlay renders")
+        expectation.expectedFulfillmentCount = 2
+
+        let baseElement = RecordingRenderable {
+            expectation.fulfill()
+        }
+
+        let overlayElement = RecordingRenderable {
+            expectation.fulfill()
+        }
+
+        renderer.renderFrame(
+            base        : [baseElement],
+            overlay     : [overlayElement],
+            in          : size,
+            defaultStyle: ElementStyle(),
+            clearing    : true,
+            onFullClear : nil
+        )
+
+        waitForExpectations(timeout: 1.0)
+    }
+}
+
+private final class RecordingRenderable: Renderable {
+
+    private let handler: () -> Void
+
+    init(handler: @escaping () -> Void) {
+        self.handler = handler
+    }
+
+    func render ( in size: winsize ) -> [AnsiSequence]? {
+        handler()
+        return []
+    }
+}
+

@@ -26,16 +26,16 @@ public struct Renderer {
   
   // same but for an array of ANSI sequences
   public func display (_ ansi: [AnsiSequence]?) {
-    
+
     guard let ansi = ansi else { return }
-    
+
     DispatchQueue.main.async { [self] in
       print( ansi.map { $0.description }.joined(separator: ""), terminator: "" )
       send( .cursorPosition )
     }
   }
-  
-  
+
+
   // draw a collection of Renderable elements
   public func render ( elements: [Renderable], in size: winsize  ) {
     
@@ -63,5 +63,41 @@ public struct Renderer {
       }
     }
   }
-  
+
+  public func renderFrame ( base: [Renderable], overlay: [Renderable], in size: winsize, defaultStyle: ElementStyle, clearing: Bool, onFullClear: (() -> Void)? ) {
+
+    // Always restore the default palette before beginning a frame so any element specific colours do not leak
+    send (
+      .forecolor(defaultStyle.foreground),
+      .backcolor(defaultStyle.background)
+    )
+
+    if clearing {
+      // When we are clearing we must reset the terminal buffer and redraw our base chrome
+      send ( .cls )
+
+      if !base.isEmpty {
+        render (
+          elements: base,
+          in      : size
+        )
+      }
+
+      onFullClear?()
+    }
+
+    if !overlay.isEmpty {
+      // Overlays always render after the base content so that they appear above it
+      render (
+        elements: overlay,
+        in      : size
+      )
+    }
+
+    // Reinstate the palette so subsequent prints outside the renderer stay consistent
+    send (
+      .forecolor(defaultStyle.foreground),
+      .backcolor(defaultStyle.background)
+    )
+  }
 }
