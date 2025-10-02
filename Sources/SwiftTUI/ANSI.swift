@@ -107,6 +107,9 @@ public enum AnsiSequence /*: CustomStringConvertible*/ {
   
   
   case flush
+  case resetForeground
+  case resetBackground
+  case resetFGBG
   
   public var description: String {
     
@@ -139,8 +142,12 @@ public enum AnsiSequence /*: CustomStringConvertible*/ {
       case .backcolor(let color)         : return color.rawValue
       case .rgb   (let r, let g,  let b) : return "\u{001B}[38;2;\(r);\(g);\(b)m"
       case .rgb_bg(let r, let g,  let b) : return "\u{001B}[48;2;\(r);\(g);\(b)m"
+  
       case .resetcolor                   : return "\u{001B}[0m"
-
+      case .resetForeground              : return "\u{001B}[39m"
+      case .resetBackground              : return "\u{001B}[49m"
+      case .resetFGBG                    : return "\u{001B}[39m" + "\u{001B}[49m"
+    
       case .bold      (let text) : return ANSIAttribute.bold.rawValue + text + ANSIAttribute.bold.offSequence
       case .underline (let text) : return ANSIAttribute.underline.rawValue + text + ANSIAttribute.underline.offSequence
       case .dim       (let text) : return ANSIAttribute.dim.rawValue + text + ANSIAttribute.dim.offSequence
