@@ -104,24 +104,24 @@ public final class Button: Renderable, OverlayInputHandling {
 
     let baseBackground     = style.background
     let baseForeground     = style.foreground
-    let highlightBack      = highlightBackground ?? baseBackground
-    let highlightFore      = highlightForeground ?? baseForeground
-    let shouldHighlight    = isHighlightActive
-    let shouldDimHighlight = usesDimHighlight && !shouldHighlight
+    let highlightBack   = highlightBackground ?? baseBackground
+    let highlightFore   = highlightForeground ?? baseForeground
+    let shouldHighlight = isHighlightActive
 
     // The highlight palette keeps overlays visually coherent without forcing
-    // every caller to understand ANSI attributes. Dimmed buttons keep the base
-    // background and rely on SGR 2 so the focus trail is visible without
-    // repainting the entire overlay with the highlight colour.
+    // every caller to understand ANSI attributes.  Previously inactive buttons
+    // used SGR 2 dimming to hint at focus order, however that made text hard to
+    // read on terminals with low contrast.  Instead we now leave them rendered
+    // with their base palette so they are merely not highlighted.
     let activeBackground = shouldHighlight ? highlightBack : baseBackground
     let activeForeground = shouldHighlight ? highlightFore : baseForeground
 
-    
+
     let seqs : [AnsiSequence] =  [
       .moveCursor(row: bounds.row, col: bounds.col),
       .backcolor (activeBackground),
       .forecolor (activeForeground),
-      shouldDimHighlight ? .dim(paddedContent) : .text(paddedContent),
+      .text(paddedContent),
     ]
 
     
