@@ -36,8 +36,8 @@ public final class TerminalApp {
     
     
     // TODO: this is sematically unpleaseant and in the wrong place, we need a new strategy for change tracking and rendering, these probably belong in Renderer
-    self.context.overlays.onChange = { [weak self] in
-      self?.render(clearing: true)
+    self.context.overlays.onChange = { [weak self] shouldClear in
+      self?.render(clearing: shouldClear)
     }
     
     

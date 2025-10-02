@@ -6,7 +6,7 @@ public final class OverlayManager {
   private var overlays: [Renderable]
   private var interactiveOverlays: [OverlayInputHandling]
 
-  public var onChange: (() -> Void)? = nil
+  public var onChange: ((Bool) -> Void)? = nil
 
   public init(overlays: [Renderable] = []) {
     self.overlays            = overlays
@@ -25,7 +25,7 @@ public final class OverlayManager {
     let box = Box(element: element)
 
     overlays.append ( box )
-    onChange?()
+    onChange?(false)
   }
 
 
@@ -53,12 +53,12 @@ public final class OverlayManager {
       style    : style,
       buttons  : buttonConfigs,
       onDismiss: { [weak self] in self?.clear() },
-      onUpdate : { [weak self] in self?.onChange?() }
+      onUpdate : { [weak self] in self?.onChange?(false) }
     )
 
     overlays.append ( overlay )
     interactiveOverlays.append( overlay )
-    onChange?()
+    onChange?(false)
   }
 
 
@@ -86,7 +86,7 @@ public final class OverlayManager {
   public func clear() {
     overlays.removeAll()
     interactiveOverlays.removeAll()
-    onChange?()
+    onChange?(true)
   }
 }
 
