@@ -14,3 +14,15 @@ public func log(_ string: String) {
 public protocol Renderable {
   func render ( in size: winsize ) -> [AnsiSequence]?
 }
+
+
+struct TUIElement : Renderable {
+  
+  var sequences: [AnsiSequence]
+  var bounds   : BoxBounds
+  
+  public func render(in size: winsize) -> [AnsiSequence]? {
+    sequences
+  }
+  
+}
