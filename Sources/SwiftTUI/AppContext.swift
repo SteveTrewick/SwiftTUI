@@ -11,14 +11,16 @@ import Glibc
 
 public class AppContext {
 
-  var input   : TerminalInputController
-  var output  : Renderer
-  var overlays: OverlayManager
-
-  public init ( input: TerminalInputController = TerminalInputController(), output: Renderer = Renderer(), overlays: OverlayManager? = nil ) {
+  let input   : TerminalInputController
+  let output  : Renderer
+  let overlays: OverlayManager
+  let style   : ElementStyle
+  
+  public init ( input: TerminalInputController = TerminalInputController(), output: Renderer = Renderer(), style: ElementStyle, overlays: OverlayManager? = nil ) {
     self.input    = input
     self.output   = output
     self.overlays = overlays ?? OverlayManager()
+    self.style    = style
   }
   
   public func log(_ string: String) {
