@@ -56,6 +56,18 @@ public final class OverlayManager {
   }
 
 
+  // Centralise overlay registration so every modal hooks into the manager consistently.
+  private func registerOverlay <T> ( _ overlay: T, needsBaseRedraw: Bool = true )
+    where T: Renderable & OverlayInputHandling & OverlayInvalidating
+  {
+
+    overlays.append ( overlay )
+    interactiveOverlays.append ( overlay )
+    invalidatableOverlays.append ( overlay )
+    onChange?( .updated ( needsBaseRedraw: needsBaseRedraw ) )
+  }
+
+
   public func drawMessageBox (
     _ message    : String,
     context      : AppContext,
@@ -86,10 +98,7 @@ public final class OverlayManager {
       onUpdate : { [weak self] needsBaseRedraw in self?.onChange?( .updated ( needsBaseRedraw: needsBaseRedraw ) ) }
     )
 
-    overlays.append ( overlay )
-    interactiveOverlays.append( overlay )
-    invalidatableOverlays.append( overlay )
-    onChange?( .updated ( needsBaseRedraw: true ) )
+    registerOverlay ( overlay )
   }
 
 
@@ -119,10 +128,7 @@ public final class OverlayManager {
       onUpdate : { [weak self] needsBaseRedraw in self?.onChange?( .updated ( needsBaseRedraw: needsBaseRedraw ) ) }
     )
 
-    overlays.append ( overlay )
-    interactiveOverlays.append ( overlay )
-    invalidatableOverlays.append ( overlay )
-    onChange?( .updated ( needsBaseRedraw: true ) )
+    registerOverlay ( overlay )
   }
 
 

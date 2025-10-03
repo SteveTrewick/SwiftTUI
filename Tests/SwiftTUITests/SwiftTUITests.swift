@@ -346,6 +346,34 @@ final class MessageBoxOverlayRenderingTests: XCTestCase {
         }
     }
 
+    func testMessageBoxRegistrationEmitsUpdateChange() {
+        let manager = OverlayManager()
+        let context = AppContext(overlays: manager)
+        var capturedChanges: [OverlayManager.Change] = []
+
+        // Capture the overlay lifecycle so the helper can be validated end-to-end.
+        manager.onChange = { change in
+            capturedChanges.append(change)
+        }
+
+        manager.drawMessageBox(
+          "Lifecycle",
+          context     : context
+        )
+
+        XCTAssertEqual(manager.activeOverlays().count, 1, "Message box should register an overlay")
+
+        guard let change = capturedChanges.last else {
+            return XCTFail("Expected registration change notification")
+        }
+
+        if case .updated(let needsBaseRedraw) = change {
+            XCTAssertTrue(needsBaseRedraw, "Message box should default to a full redraw")
+        } else {
+            XCTFail("Expected updated change for message box registration")
+        }
+    }
+
     func testSelectionListRendersItemsWithHighlight () {
         let manager = OverlayManager()
         let context = AppContext(overlays: manager)
@@ -416,6 +444,46 @@ final class MessageBoxOverlayRenderingTests: XCTestCase {
 
         XCTAssertTrue(overlay.handle ( .cursor ( .up ) ), "Up arrow should move highlight")
         XCTAssertEqual(overlay.debugActiveIndex, 0, "Highlight should move back to the first row")
+    }
+
+    func testSelectionListDismissalEmitsClearChange () {
+        let manager = OverlayManager()
+        let context = AppContext(overlays: manager)
+        var capturedChanges: [OverlayManager.Change] = []
+
+        manager.onChange = { change in
+            capturedChanges.append(change)
+        }
+
+        manager.drawSelectionList (
+          [SelectionListItem ( text: "Single" )],
+          context  : context
+        )
+
+        XCTAssertEqual(manager.activeOverlays().count, 1, "Selection list should register an overlay")
+
+        guard let overlay = manager.activeOverlays().last as? SelectionListOverlay else {
+            return XCTFail("Expected selection list overlay instance")
+        }
+
+        XCTAssertTrue(overlay.handle ( .key ( .ESC ) ), "ESC should dismiss selection list")
+        XCTAssertTrue(manager.activeOverlays().isEmpty, "Dismissed selection list should clear overlays")
+
+        XCTAssertEqual(capturedChanges.count, 2, "Registration and dismissal should emit change notifications")
+
+        if capturedChanges.count >= 2 {
+            if case .updated(let needsBaseRedraw) = capturedChanges[0] {
+                XCTAssertTrue(needsBaseRedraw, "Selection list registration should request full redraw")
+            } else {
+                XCTFail("Expected registration to emit updated change")
+            }
+
+            if case .cleared = capturedChanges[1] {
+                // Success.
+            } else {
+                XCTFail("Expected dismissal to emit cleared change")
+            }
+        }
     }
 
     func testSelectionListDismissesOnEscape () {
