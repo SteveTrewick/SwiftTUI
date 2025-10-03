@@ -97,20 +97,16 @@ public class Renderer {
     guard rectangle.height > 0 else { return }
 
     let top       = rectangle.row
-    let left      = rectangle.col
-    let width     = rectangle.width
-    let height    = rectangle.height
-    let bottom    = top + height - 1
-    let blankLine = AnsiSequence.repeatChars(" ", count: width)
-
+    let bottom    = rectangle.row + rectangle.height - 1
+    
     // Save and restore the cursor so the caller's active draw position is untouched while
     // we manually scrub each row with the classic CSI erase primitives.
     var sequences : [AnsiSequence] = [ .saveCursor ]
 
     for row in top...bottom {
       sequences += [
-        .moveCursor(row: row, col: left),
-        blankLine
+        .moveCursor(row: row, col: rectangle.col),
+        .killLine
       ]
     }
 
