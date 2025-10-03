@@ -55,15 +55,16 @@ public final class OverlayManager {
 
 
   public func drawMessageBox (
-    _ message: String,
-    context  : AppContext,
-    row      : Int?              = nil,
-    col      : Int?              = nil,
-    style    : ElementStyle      = ElementStyle(),
-    buttonText: String           = "OK",
+    _ message    : String,
+    context      : AppContext,
+    row          : Int?              = nil,
+    col          : Int?              = nil,
+    style        : ElementStyle?     = nil,
+    buttonText   : String           = "OK",
     activationKey: TerminalInput.ControlKey = .RETURN,
-    buttons  : [MessageBoxButton] = []
-  ) {
+    buttons      : [MessageBoxButton] = []
+  )
+  {
 
     let buttonConfigs: [MessageBoxButton]
     if buttons.isEmpty {
@@ -77,7 +78,7 @@ public final class OverlayManager {
       context  : context,
       row      : row,
       col      : col,
-      style    : style,
+      style    : style ?? context.style,
       buttons  : buttonConfigs,
       onDismiss: { [weak self] in self?.clear() },
       onUpdate : { [weak self] in self?.onChange?( .updated ) }
@@ -95,7 +96,7 @@ public final class OverlayManager {
     context  : AppContext,
     row      : Int?         = nil,
     col      : Int?         = nil,
-    style    : ElementStyle = ElementStyle(),
+    style    : ElementStyle? = nil,
     onSelect : ((SelectionListItem) -> Void)? = nil,
     onDismiss: (() -> Void)? = nil
   ) {
@@ -107,7 +108,7 @@ public final class OverlayManager {
       context  : context,
       row      : row,
       col      : col,
-      style    : style,
+      style    : style ?? context.style,
       onSelect : onSelect,
       onDismiss: { [weak self] in
         onDismiss?()
