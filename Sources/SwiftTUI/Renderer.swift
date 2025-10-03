@@ -105,8 +105,8 @@ public class Renderer {
 
     for row in top...bottom {
       sequences += [
-        .moveCursor(row: row, col: rectangle.col),
-        .repeatChars(" ", count: rectangle.width)
+        .moveCursor  (row: row, col  : rectangle.col  ),
+        .repeatChars (" ",      count: rectangle.width)
       ]
     }
 
