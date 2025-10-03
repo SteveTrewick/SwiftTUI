@@ -116,7 +116,7 @@ public class Renderer {
   }
   
   
-  public func renderFrame ( base: [Renderable], overlay: [Renderable], in size: winsize, defaultStyle: ElementStyle, clearMode: ClearMode, onFullClear: (() -> Void)? ) {
+  public func renderFrame ( base: [Renderable], overlay: [Renderable], in size: winsize, defaultStyle: ElementStyle, clearMode: ClearMode, onFullClear: (() -> Void)?, overlayClearBounds: [BoxBounds] = [] ) {
 
     // Always restore the default palette before beginning a frame so any element specific colours do not leak
     send (
@@ -143,21 +143,33 @@ public class Renderer {
         onFullClear?()
 
       case .overlayDismissal:
-        // Overlays render between the menu and status rows. When they disappear we punch a DECERA window
-        // through that region so we do not disturb the chrome framing the workspace.
-        let rows    = Int ( size.ws_row )
-        let columns = Int ( size.ws_col )
-        let height  = rows - 2
+        let targetBounds: [BoxBounds]
 
-        if columns > 0 && height > 0 {
-          clear (
-            rectangle: BoxBounds (
-              row    : 2,
-              col    : 1,
-              width  : columns,
-              height : height
-            )
-          )
+        if overlayClearBounds.isEmpty {
+          // Fall back to the legacy blanket clear if no overlays reported a visible region.
+          let rows    = Int ( size.ws_row )
+          let columns = Int ( size.ws_col )
+          let height  = rows - 2
+
+          if columns > 0 && height > 0 {
+            targetBounds = [
+              BoxBounds (
+                row    : 2,
+                col    : 1,
+                width  : columns,
+                height : height
+              )
+            ]
+          } else {
+            targetBounds = []
+          }
+        } else {
+          // Drive individual clears so overlays only scrub the rows they occupied.
+          targetBounds = overlayClearBounds
+        }
+
+        for rectangle in targetBounds {
+          clear ( rectangle: rectangle )
         }
     }
 

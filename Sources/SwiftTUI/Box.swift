@@ -42,7 +42,7 @@ public struct BoxElement {
 }
 
 
-public struct Box : Renderable {
+public struct Box : Renderable, OverlayBoundsReporting {
 
   let element: BoxElement
 
@@ -50,6 +50,10 @@ public struct Box : Renderable {
     // Keep the higher level BoxElement descriptor intact so downstream
     // renderers can inspect both bounds and styling directly.
     self.element = element
+  }
+
+  public var overlayBounds: BoxBounds? {
+    element.bounds
   }
 
   public func render ( in terminalSize: winsize ) -> [AnsiSequence]? {

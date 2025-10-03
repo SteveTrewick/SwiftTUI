@@ -1,6 +1,13 @@
 import Foundation
 
 
+// Overlays that can describe their on-screen footprint expose that through this protocol
+// so dismissal can surgically scrub their region without disturbing surrounding UI chrome.
+protocol OverlayBoundsReporting {
+  var overlayBounds: BoxBounds? { get }
+}
+
+
 public final class OverlayManager {
 
   private var overlays             : [Renderable]
@@ -9,6 +16,8 @@ public final class OverlayManager {
   // Maintain a short FIFO buffer so overlays can drain bursts over several passes
   // without dropping keystrokes when they are busy repainting.
   private var bufferedInputs       : [TerminalInput.Input]
+  // Cache the most recent overlay bounds so dismissal clears only the visible region.
+  private var pendingClearBounds   : [BoxBounds]
 
   private let maximumBufferedInputs = 32
   private let maximumInputsPerPass  = 16
@@ -26,6 +35,7 @@ public final class OverlayManager {
     self.interactiveOverlays  = []
     self.bufferedInputs       = []
     self.invalidatableOverlays = []
+    self.pendingClearBounds   = []
   }
 
 
@@ -174,10 +184,19 @@ public final class OverlayManager {
   }
 
   public func clear() {
+    pendingClearBounds = overlays.compactMap { overlay in
+      guard let reporting = overlay as? OverlayBoundsReporting else { return nil }
+      return reporting.overlayBounds
+    }
     overlays.removeAll()
     interactiveOverlays.removeAll()
     invalidatableOverlays.removeAll()
     onChange?( .cleared )
+  }
+
+  public func consumeClearedOverlayBounds() -> [BoxBounds] {
+    defer { pendingClearBounds.removeAll() }
+    return pendingClearBounds
   }
 }
 
@@ -195,7 +214,7 @@ public struct MessageBoxButton {
   }
 }
 
-final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalidating {
+final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalidating, OverlayBoundsReporting {
 
   private let messageBox  : MessageBox
   private let context     : AppContext
@@ -214,6 +233,10 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
 
   // Expose the highlight index for regression tests without widening the public surface.
   var debugActiveButtonIndex: Int { activeIndex }
+
+  var overlayBounds: BoxBounds? {
+    cachedLayout?.bounds
+  }
 
   init(
     message   : String,
@@ -579,7 +602,7 @@ public struct SelectionListItem {
   }
 }
 
-final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInvalidating {
+final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInvalidating, OverlayBoundsReporting {
 
   private let items             : [SelectionListItem]
   private let context           : AppContext
@@ -599,6 +622,10 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
   private var isDismissed       : Bool
 
   var debugActiveIndex : Int { activeIndex }
+
+  var overlayBounds       : BoxBounds? {
+    cachedBounds
+  }
 
   init (
     items    : [SelectionListItem],
