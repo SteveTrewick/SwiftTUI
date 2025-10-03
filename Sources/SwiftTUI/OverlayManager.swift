@@ -151,8 +151,9 @@ public final class OverlayManager {
 
     guard !bufferedInputs.isEmpty else { return false }
 
-    var handledAny     = false
-    var processedCount = 0
+    var handledAny           = false
+    var processedCount       = 0
+    var sawInteractiveOverlay = false
     // Always chew through the newest batch while bounding the backlog so large
     // bursts can spill into subsequent passes without blocking the UI loop.
     let passQuota      = max(inputs.count, maximumInputsPerPass)
@@ -160,18 +161,19 @@ public final class OverlayManager {
 
     while processedCount < limit {
 
-      if interactiveOverlays.isEmpty {
+      guard let focusedOverlay = interactiveOverlays.last else {
         bufferedInputs.removeAll()
         break
       }
 
-      let input    = bufferedInputs[processedCount]
-      let handlers = interactiveOverlays
+      // When an overlay is on-screen it owns the keyboard focus. This keeps modal
+      // flows predictable and ensures stray keystrokes cannot reach background UI.
+      sawInteractiveOverlay = true
 
-      for overlay in handlers {
-        if overlay.handle(input) {
-          handledAny = true
-        }
+      let input = bufferedInputs[processedCount]
+
+      if focusedOverlay.handle(input) {
+        handledAny = true
       }
 
       processedCount += 1
@@ -181,7 +183,7 @@ public final class OverlayManager {
       bufferedInputs.removeFirst(processedCount)
     }
 
-    return handledAny
+    return handledAny || sawInteractiveOverlay
   }
 
   public func clear() {
