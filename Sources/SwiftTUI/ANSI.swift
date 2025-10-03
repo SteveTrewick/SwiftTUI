@@ -97,8 +97,9 @@ public enum AnsiSequence /*: CustomStringConvertible*/ {
   
   case clearScrollBack
 
+  //NB this doesn't work, like at all, annoyingly.
   // DECERA: erase a rectangular region without disturbing the rest of the buffer.
-  case eraseRectangularArea(top: Int, left: Int, bottom: Int, right: Int)
+  //case eraseRectangularArea(top: Int, left: Int, bottom: Int, right: Int)
   
   case altBuffer
   case normBuffer
@@ -167,8 +168,10 @@ public enum AnsiSequence /*: CustomStringConvertible*/ {
       case .cls                            : return "\u{001B}[2J"
       case .killLine                       : return "\u{01b}[0K"
       case .clearScrollBack                : return "\u{001B}[3J"
-      case .eraseRectangularArea(let top, let left, let bottom, let right) :
-        return "\u{001B}[\(top);\(left);\(bottom);\(right)$z"
+      
+      // sadly, this doesn't work
+      //case .eraseRectangularArea(let top, let left, let bottom, let right) :return "\u{001B}[\(top);\(left);\(bottom);\(right)$z"
+      
       case .setScroll  (let top,  let bot ): return "\u{001B}[\(top);\(bot)r"
       case .altBuffer                      : return "\u{001B}[?1049h"
       case .normBuffer                     : return "\u{001B}[?1049l"
