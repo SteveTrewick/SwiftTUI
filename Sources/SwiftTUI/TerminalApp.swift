@@ -19,15 +19,14 @@ public final class TerminalApp {
   private let menuBar      : MenuBar
   private let context      : AppContext
   private var cursor       : Cursor
-  private var defaultStyle : ElementStyle
+  
   
   private var awaitingMenuSelection: Bool
   
-  public init ( menuBar: MenuBar, statusBar: StatusBar, context: AppContext, defaultStyle: ElementStyle, window: WindowChanges = WindowChanges() )
+  public init ( menuBar: MenuBar, statusBar: StatusBar, context: AppContext, window: WindowChanges = WindowChanges() )
   {
     self.cursor                 = Cursor(row: 0, col: 0)
     self.window                 = window
-    self.defaultStyle           = defaultStyle
     self.context                = context
     self.statusBar              = statusBar
     self.menuBar                = menuBar
@@ -123,23 +122,14 @@ public final class TerminalApp {
   
   func render ( clearMode: Renderer.ClearMode = .full ) {
 
-    let size             = window.size
-    let statusElement    = updateStatusBar(for: size)
-    let baseElements     : [Renderable] = [ menuBar, statusElement ]
-    let overlayElements  = context.overlays.activeOverlays()
-    let invalidation     : (() -> Void)? = (clearMode == .full) ? { [context] in context.overlays.invalidateActiveOverlays() } : nil
-
-    // Capture the cleared overlay bounds so the renderer can target its scrub pass.
-    let overlayClearBounds = (clearMode == .overlayDismissal) ? context.overlays.consumeClearedOverlayBounds() : []
-
     context.output.renderFrame (
-      base              : baseElements,
-      overlay           : overlayElements,
-      in                : size,
-      defaultStyle      : defaultStyle,
+      base              : [ menuBar, updateStatusBar(for: window.size) ],
+      overlay           : context.overlays.activeOverlays(),
+      in                : window.size,
+      defaultStyle      : context.style,
       clearMode         : clearMode,
-      onFullClear       : invalidation,
-      overlayClearBounds: overlayClearBounds
+      onFullClear       : (clearMode == .full) ? { [context] in context.overlays.invalidateActiveOverlays() } : nil,
+      overlayClearBounds: (clearMode == .overlayDismissal) ? context.overlays.consumeClearedOverlayBounds() : []
     )
 
   }
