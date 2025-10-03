@@ -99,8 +99,7 @@ public class Renderer {
     let top       = rectangle.row
     let bottom    = rectangle.row + rectangle.height - 1
     
-    // Save and restore the cursor so the caller's active draw position is untouched while
-    // we manually scrub each row with the classic CSI erase primitives.
+    // Save and restore the cursor so the caller's active draw position is untouched 
     var sequences : [AnsiSequence] = [ .saveCursor ]
 
     for row in top...bottom {
@@ -126,9 +125,13 @@ public class Renderer {
 
     
     func handleFullClear () {
-      // Extracted to clarify that full clears always rebuild the base chrome before overlays draw.
-      send ( .cls )
-
+      
+      // so annoyingly, it turns out that we can't actually just use cls for this as it just resets
+      // the terminal's defaults. arse
+      // send ( .cls )
+      
+      clear ( rectangle: BoxBounds ( row: 1, col: 1, width: Int ( size.ws_col ), height: Int ( size.ws_row ) ) )
+      
       if !base.isEmpty {
         render (
           elements: base,
