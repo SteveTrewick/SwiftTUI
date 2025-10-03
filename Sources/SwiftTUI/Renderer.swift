@@ -106,7 +106,7 @@ public class Renderer {
     for row in top...bottom {
       sequences += [
         .moveCursor(row: row, col: rectangle.col),
-        .killLine
+        .repeatChars(" ", count: rectangle.width)
       ]
     }
 
