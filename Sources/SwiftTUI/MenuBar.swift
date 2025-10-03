@@ -6,10 +6,18 @@ public final class MenuItem : Renderable {
   public var style   : ElementStyle
   public var action  : MenuAction
   public var context : AppContext
-  
+
   private var originRow: Int
   private var originCol: Int
-  
+
+  // Expose the anchor through a computed property so overlays can align
+  // themselves relative to the menu item while keeping the mutable state local
+  // to the item. The stored coordinates remain private to avoid external
+  // mutation while still allowing callers to reason about placement.
+  public var anchor : (row: Int, col: Int) {
+    (row: originRow, col: originCol)
+  }
+
   
 
   public init ( name: String, style: ElementStyle, context: AppContext, action: MenuAction ) {

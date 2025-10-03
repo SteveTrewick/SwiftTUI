@@ -45,6 +45,29 @@ public struct MenuAction {
     }
   }
 
+  public static func anchoredSelectionList ( items: [SelectionListItem], rowOffset: Int = 1, colOffset: Int = 0, row: Int? = nil, col: Int? = nil ) -> MenuAction {
+    MenuAction { context, item in
+
+      // Derive overlay coordinates from the menu item's stored origin so the
+      // submenu appears adjacent to its trigger. Offsets keep the overlay a
+      // predictable distance away (defaulting to the row beneath the menu bar)
+      // and clamping guards against wandering into column or row zero.
+
+      let anchor      = item.anchor
+      let anchoredRow = max(1, anchor.row + rowOffset)
+      let anchoredCol = max(1, anchor.col + colOffset)
+
+      // Allow overriding coordinates explicitly so centred or bespoke layouts
+      // remain possible while the default anchored offsets stay predictable.
+      context.overlays.drawSelectionList(
+        items,
+        context: context,
+        row    : row ?? anchoredRow,
+        col    : col ?? anchoredCol
+      )
+    }
+  }
+
 }
 
 
