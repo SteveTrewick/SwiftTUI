@@ -836,14 +836,33 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
     guard rows > 0 && columns > 0 else { return nil }
 
     let interiorWidth = SelectionListOverlay.minimumInteriorWidth ( for: items )
-    let width  = interiorWidth + 2
-    let height = items.count + 2
+    let width         = interiorWidth + 2
+    let height        = items.count + 2
 
     guard width  <= columns else { return nil }
     guard height <= rows    else { return nil }
 
-    let top  = row ?? max(1, ((rows    - height) / 2) + 1)
-    let left = col ?? max(1, ((columns - width ) / 2) + 1)
+    let centeredTop  = max(1, ((rows    - height) / 2) + 1)
+    let centeredLeft = max(1, ((columns - width ) / 2) + 1)
+    let maxTop       = max(1, rows    - height + 1)
+    let maxLeft      = max(1, columns - width  + 1)
+
+    let top  : Int
+    let left : Int
+
+    if let anchorRow = row {
+      // Anchor requests are clamped so overlays slide on-screen instead of failing layout outright.
+      top = min(max(anchorRow, 1), maxTop)
+    } else {
+      top = centeredTop
+    }
+
+    if let anchorCol = col {
+      // Horizontal anchors are clamped for the same reason so the overlay stays fully visible.
+      left = min(max(anchorCol, 1), maxLeft)
+    } else {
+      left = centeredLeft
+    }
 
     let bottom = top  + height - 1
     let right  = left + width  - 1
