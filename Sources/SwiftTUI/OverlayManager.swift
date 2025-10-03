@@ -333,7 +333,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
 
     // Convert the base element style into a highlight palette so buttons stay
     // visually consistent with the rest of the overlay.
-    let highlightPalette = MessageBoxOverlay.highlightPalette(for: style)
+    let highlightPalette = ElementStyle.highlightPalette ( for: style )
 
     self.buttons = buttons.enumerated().map { index, config in
       let action = config.handler
@@ -540,20 +540,6 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     }
   }
 
-  private static func highlightPalette(for style: ElementStyle) -> (foreground: ANSIForecolor, background: ANSIBackcolor) {
-
-    let highlightBackground = MessageBoxOverlay.backcolor(for: style.foreground)
-    let fallbackForeground  = MessageBoxOverlay.forecolor(for: style.background)
-
-    if highlightBackground == style.background {
-      // If the highlight would match the surrounding box fall back to white so
-      // the selected button remains visible against darker themes.
-      return (fallbackForeground, .white)
-    }
-
-    return (fallbackForeground, highlightBackground)
-  }
-
   private static func minimumInteriorWidth(for buttons: [MessageBoxButton]) -> Int {
 
     guard !buttons.isEmpty else { return 0 }
@@ -573,33 +559,6 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     // Button labels are rendered as "[ text ]" so we add four characters to the
     // raw label length to account for the brackets and surrounding spaces.
     return text.count + 4
-  }
-
-  private static func backcolor(for forecolor: ANSIForecolor) -> ANSIBackcolor {
-    switch forecolor {
-      case .black  : return .black
-      case .red    : return .red
-      case .green  : return .green
-      case .yellow : return .yellow
-      case .blue   : return .blue
-      case .magenta: return .magenta
-      case .cyan   : return .vyan
-      case .white  : return .white
-    }
-  }
-
-  private static func forecolor(for backcolor: ANSIBackcolor) -> ANSIForecolor {
-    switch backcolor {
-      case .black  : return .black
-      case .red    : return .red
-      case .green  : return .green
-      case .yellow : return .yellow
-      case .blue   : return .blue
-      case .magenta: return .magenta
-      case .vyan   : return .cyan
-      case .white  : return .white
-      case .grey   : return .white
-    }
   }
 
   private func markButtonsDirty(_ indexes: [Int]) {
@@ -691,7 +650,7 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
 
     // Reuse the same palette rules as the message box buttons so every overlay
     // stays visually coherent even when callers customise the base style.
-    self.highlightPalette   = SelectionListOverlay.highlightPalette ( for: style )
+    self.highlightPalette   = ElementStyle.highlightPalette ( for: style )
   }
 
   func invalidateForFullRedraw () {
@@ -910,47 +869,6 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
     // This matches the visual balance of the left padding and keeps the cursor
     // well clear of the frame when the overlay is repainted.
     return max(widest + 2, 2)
-  }
-
-  private static func highlightPalette ( for style: ElementStyle ) -> (foreground: ANSIForecolor, background: ANSIBackcolor) {
-
-    let highlightBackground = SelectionListOverlay.backcolor ( for: style.foreground )
-    let fallbackForeground  = SelectionListOverlay.forecolor ( for: style.background )
-
-    if highlightBackground == style.background {
-      // When the highlight would blend into the background fall back to white so
-      // the focused row stays visible against darker palettes.
-      return (fallbackForeground, .white)
-    }
-
-    return (fallbackForeground, highlightBackground)
-  }
-
-  private static func backcolor ( for forecolor: ANSIForecolor ) -> ANSIBackcolor {
-    switch forecolor {
-      case .black  : return .black
-      case .red    : return .red
-      case .green  : return .green
-      case .yellow : return .yellow
-      case .blue   : return .blue
-      case .magenta: return .magenta
-      case .cyan   : return .vyan
-      case .white  : return .white
-    }
-  }
-
-  private static func forecolor ( for backcolor: ANSIBackcolor ) -> ANSIForecolor {
-    switch backcolor {
-      case .black  : return .black
-      case .red    : return .red
-      case .green  : return .green
-      case .yellow : return .yellow
-      case .blue   : return .blue
-      case .magenta: return .magenta
-      case .vyan   : return .cyan
-      case .white  : return .white
-      case .grey   : return .white
-    }
   }
 
   private static func bounds ( _ bounds: BoxBounds, matches cached: BoxBounds? ) -> Bool {
