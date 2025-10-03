@@ -139,36 +139,30 @@ public class Renderer {
       onFullClear?()
     }
 
+    
+    
     func handleOverlayDismissal () {
-      // Extracted to emphasise how overlays nominate their own cleanup rectangles when dismissed.
-      let targetBounds: [BoxBounds]
-
-      if overlayClearBounds.isEmpty {
+      
+      if !overlayClearBounds.isEmpty { overlayClearBounds.forEach { clear ( rectangle: $0 ) } }
+      else
+      {
         // Fall back to the legacy blanket clear if no overlays reported a visible region.
-        let rows    = Int ( size.ws_row )
         let columns = Int ( size.ws_col )
-        let height  = rows - 2
+        let height  = Int ( size.ws_row ) - 2
 
         if columns > 0 && height > 0 {
-          targetBounds = [
+          clear ( rectangle:
             BoxBounds (
               row    : 2,
               col    : 1,
               width  : columns,
               height : height
             )
-          ]
-        } else {
-          targetBounds = []
+          )
         }
-      } else {
-        // Drive individual clears so overlays only scrub the rows they occupied.
-        targetBounds = overlayClearBounds
+      
       }
-
-      for rectangle in targetBounds {
-        clear ( rectangle: rectangle )
-      }
+    
     }
 
     switch clearMode {
