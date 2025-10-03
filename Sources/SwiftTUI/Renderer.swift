@@ -154,16 +154,22 @@ public class Renderer {
         let height  = Int ( size.ws_row ) - 2
 
         if columns > 0 && height > 0 {
-          clear ( rectangle:
-            BoxBounds (
-              row    : 2,
-              col    : 1,
-              width  : columns,
-              height : height
-            )
-          )
+          var sequences: [AnsiSequence] = [ .saveCursor ]
+
+          for offset in 0..<height {
+            let row = 2 + offset
+            // Use the terminal's native clear so dismissal cannot leave artifacts in
+            // rows that previously held overlay content.
+            sequences += [
+              .moveCursor(row: row, col: 1),
+              .killLine
+            ]
+          }
+
+          sequences.append ( .restoreCursor )
+          render ( sequences )
         }
-      
+
       }
     
     }

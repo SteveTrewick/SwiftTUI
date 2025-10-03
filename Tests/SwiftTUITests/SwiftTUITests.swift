@@ -7,6 +7,20 @@ import Darwin
 import XCTest
 @testable import SwiftTUI
 
+private extension AppContext {
+
+    // Tests spin up the application context without caring about input/output wiring.
+    // Provide local shims so the fixtures stay succinct while still satisfying the
+    // designated initializer that production code uses.
+    convenience init(overlays: OverlayManager) {
+        self.init(style: ElementStyle(), overlays: overlays)
+    }
+
+    convenience init() {
+        self.init(style: ElementStyle())
+    }
+}
+
 final class CircularBufferTests: XCTestCase {
 
     func testCircularBufferFullnessTransitions() {
@@ -249,6 +263,23 @@ final class MessageBoxOverlayRenderingTests: XCTestCase {
 
         XCTAssertTrue(handled, "Expected overlay to handle cursor input batch")
         XCTAssertEqual(overlay.debugActiveButtonIndex, 2, "Highlight should advance for each cursor event")
+    }
+
+    func testMessageBoxSwallowsUnhandledInputWhileActive() {
+        let manager = OverlayManager()
+        let context = AppContext(overlays: manager)
+
+        manager.drawMessageBox(
+          "Modal",
+          context     : context
+        )
+
+        // Use a control key the default button ignores so we can assert that the
+        // overlay still consumes the keystroke instead of letting it bubble into
+        // background UI such as menus.
+        let handled = manager.handle(inputs: [.key(.TAB)])
+
+        XCTAssertTrue(handled, "Focused overlays should swallow unhandled input")
     }
 
     func testMessageBoxRedrawsButtonsOnlyWhenHighlightChanges() {
