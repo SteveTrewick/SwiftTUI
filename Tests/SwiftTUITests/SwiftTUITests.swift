@@ -514,7 +514,46 @@ final class RendererRenderFrameTests: XCTestCase {
 
         XCTAssertTrue(output.contains("\u{001B}[s"), "Clear should preserve the caller cursor with save")
         XCTAssertTrue(output.contains("\u{001B}[u"), "Clear should restore the caller cursor after scrubbing")
-        XCTAssertTrue(output.contains("\u{001B}[5;1H     "), "Overlay dismissal should blank the final row in the overlay region")
+        XCTAssertTrue(output.contains("\u{001B}[5;1H\u{001B}[0K"), "Overlay dismissal should blank the final row in the overlay region")
+    }
+
+    func testOverlayDismissalClearsSpecificBounds() {
+        let renderer = Renderer()
+        let size = winsize(ws_row: 10, ws_col: 20, ws_xpixel: 0, ws_ypixel: 0)
+        let pipe = Pipe()
+        let originalStdout = dup(STDOUT_FILENO)
+        dup2(pipe.fileHandleForWriting.fileDescriptor, STDOUT_FILENO)
+
+        let overlayBounds = BoxBounds(row: 3, col: 5, width: 6, height: 2)
+
+        renderer.renderFrame(
+            base              : [],
+            overlay           : [],
+            in                : size,
+            defaultStyle      : ElementStyle(),
+            clearMode         : .overlayDismissal,
+            onFullClear       : nil,
+            overlayClearBounds: [overlayBounds]
+        )
+
+        let drainExpectation = expectation(description: "Wait for renderer output")
+        DispatchQueue.main.async {
+            drainExpectation.fulfill()
+        }
+        waitForExpectations(timeout: 1.0)
+
+        fflush(stdout)
+        pipe.fileHandleForWriting.closeFile()
+
+        dup2(originalStdout, STDOUT_FILENO)
+        close(originalStdout)
+
+        let outputData = pipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: outputData, encoding: .utf8) ?? ""
+
+        XCTAssertTrue(output.contains("\u{001B}[3;5H"), "Overlay dismissal should target the overlay top row")
+        XCTAssertTrue(output.contains("\u{001B}[4;5H"), "Overlay dismissal should scrub each row inside the overlay bounds")
+        XCTAssertFalse(output.contains("\u{001B}[2;1H"), "Overlay dismissal should avoid clearing the chrome when bounds are provided")
     }
 }
 

@@ -129,13 +129,17 @@ public final class TerminalApp {
     let overlayElements  = context.overlays.activeOverlays()
     let invalidation     : (() -> Void)? = (clearMode == .full) ? { [context] in context.overlays.invalidateActiveOverlays() } : nil
 
+    // Capture the cleared overlay bounds so the renderer can target its scrub pass.
+    let overlayClearBounds = (clearMode == .overlayDismissal) ? context.overlays.consumeClearedOverlayBounds() : []
+
     context.output.renderFrame (
-      base        : baseElements,
-      overlay     : overlayElements,
-      in          : size,
-      defaultStyle: defaultStyle,
-      clearMode   : clearMode,
-      onFullClear : invalidation
+      base              : baseElements,
+      overlay           : overlayElements,
+      in                : size,
+      defaultStyle      : defaultStyle,
+      clearMode         : clearMode,
+      onFullClear       : invalidation,
+      overlayClearBounds: overlayClearBounds
     )
 
   }
