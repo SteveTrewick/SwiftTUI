@@ -125,52 +125,57 @@ public class Renderer {
     )
 
     
-    switch clearMode {
-      
-    case .none: break
+    func handleFullClear () {
+      // Extracted to clarify that full clears always rebuild the base chrome before overlays draw.
+      send ( .cls )
 
-      case .full:
-        // A resize or explicit full clear demands a terminal reset so the chrome can be redrawn.
-        send ( .cls )
+      if !base.isEmpty {
+        render (
+          elements: base,
+          in      : size
+        )
+      }
 
-        if !base.isEmpty {
-          render (
-            elements: base,
-            in      : size
-          )
-        }
+      onFullClear?()
+    }
 
-        onFullClear?()
+    func handleOverlayDismissal () {
+      // Extracted to emphasise how overlays nominate their own cleanup rectangles when dismissed.
+      let targetBounds: [BoxBounds]
 
-      case .overlayDismissal:
-        let targetBounds: [BoxBounds]
+      if overlayClearBounds.isEmpty {
+        // Fall back to the legacy blanket clear if no overlays reported a visible region.
+        let rows    = Int ( size.ws_row )
+        let columns = Int ( size.ws_col )
+        let height  = rows - 2
 
-        if overlayClearBounds.isEmpty {
-          // Fall back to the legacy blanket clear if no overlays reported a visible region.
-          let rows    = Int ( size.ws_row )
-          let columns = Int ( size.ws_col )
-          let height  = rows - 2
-
-          if columns > 0 && height > 0 {
-            targetBounds = [
-              BoxBounds (
-                row    : 2,
-                col    : 1,
-                width  : columns,
-                height : height
-              )
-            ]
-          } else {
-            targetBounds = []
-          }
+        if columns > 0 && height > 0 {
+          targetBounds = [
+            BoxBounds (
+              row    : 2,
+              col    : 1,
+              width  : columns,
+              height : height
+            )
+          ]
         } else {
-          // Drive individual clears so overlays only scrub the rows they occupied.
-          targetBounds = overlayClearBounds
+          targetBounds = []
         }
+      } else {
+        // Drive individual clears so overlays only scrub the rows they occupied.
+        targetBounds = overlayClearBounds
+      }
 
-        for rectangle in targetBounds {
-          clear ( rectangle: rectangle )
-        }
+      for rectangle in targetBounds {
+        clear ( rectangle: rectangle )
+      }
+    }
+
+    switch clearMode {
+
+      case .none              : break
+      case .full              : handleFullClear()
+      case .overlayDismissal  : handleOverlayDismissal()
     }
 
     if !overlay.isEmpty {
