@@ -120,8 +120,8 @@ public class Renderer {
 
     // Always restore the default palette before beginning a frame so any element specific colours do not leak
     send (
-      .forecolor(defaultStyle.foreground),
-      .backcolor(defaultStyle.background)
+      .forecolor ( defaultStyle.foreground ),
+      .backcolor ( defaultStyle.background )
     )
 
     
