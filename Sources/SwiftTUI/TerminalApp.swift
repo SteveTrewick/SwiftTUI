@@ -37,9 +37,13 @@ public final class TerminalApp {
     // TODO: this is sematically unpleaseant and in the wrong place, we need a new strategy for change tracking and rendering, these probably belong in Renderer
     // Overlay changes either trigger a light overlay repaint or a DECERA pass when they disappear.
     self.context.overlays.onChange = { [weak self] change in
+      // Overlay updates can now specify whether the surrounding chrome actually
+      // changed, letting anchored menus avoid redundant redraws during navigation.
       switch change {
-        case .updated : self?.render(clearMode: .none)
-        case .cleared : self?.render(clearMode: .overlayDismissal)
+        case .updated ( let needsBaseRedraw ) :
+          self?.render ( clearMode: .none, rendersBase: needsBaseRedraw )
+        case .cleared                     :
+          self?.render ( clearMode: .overlayDismissal )
       }
     }
     
@@ -120,10 +124,20 @@ public final class TerminalApp {
   // for now, just do this.
   
   
-  func render ( clearMode: Renderer.ClearMode = .full ) {
+  func render ( clearMode: Renderer.ClearMode = .full, rendersBase: Bool = true ) {
+
+    let baseElements: [Renderable]
+
+    if rendersBase {
+      baseElements = [ menuBar, updateStatusBar(for: window.size) ]
+    } else {
+      // Anchored selection overlays only nudge the submenu highlight, so skipping
+      // the base repaint avoids redundant menu redraws while the overlay is live.
+      baseElements = []
+    }
 
     context.output.renderFrame (
-      base              : [ menuBar, updateStatusBar(for: window.size) ],
+      base              : baseElements,
       overlay           : context.overlays.activeOverlays(),
       in                : window.size,
       defaultStyle      : context.style,

@@ -23,8 +23,10 @@ public final class OverlayManager {
   private let maximumInputsPerPass  = 16
 
   // Propagate overlay lifecycle events so the renderer can adapt its clearing strategy.
+  // Flag overlay updates so the renderer can avoid repainting the base chrome when
+  // only transient overlay content has changed (for example, selection highlights).
   public enum Change {
-    case updated
+    case updated ( needsBaseRedraw: Bool )
     case cleared
   }
 
@@ -50,7 +52,7 @@ public final class OverlayManager {
     let box = Box(element: element)
 
     overlays.append ( box )
-    onChange?( .updated )
+    onChange?( .updated ( needsBaseRedraw: true ) )
   }
 
 
@@ -81,13 +83,13 @@ public final class OverlayManager {
       style    : style ?? context.style,
       buttons  : buttonConfigs,
       onDismiss: { [weak self] in self?.clear() },
-      onUpdate : { [weak self] in self?.onChange?( .updated ) }
+      onUpdate : { [weak self] needsBaseRedraw in self?.onChange?( .updated ( needsBaseRedraw: needsBaseRedraw ) ) }
     )
 
     overlays.append ( overlay )
     interactiveOverlays.append( overlay )
     invalidatableOverlays.append( overlay )
-    onChange?( .updated )
+    onChange?( .updated ( needsBaseRedraw: true ) )
   }
 
 
@@ -114,13 +116,13 @@ public final class OverlayManager {
         onDismiss?()
         self?.clear()
       },
-      onUpdate : { [weak self] in self?.onChange?( .updated ) }
+      onUpdate : { [weak self] needsBaseRedraw in self?.onChange?( .updated ( needsBaseRedraw: needsBaseRedraw ) ) }
     )
 
     overlays.append ( overlay )
     interactiveOverlays.append ( overlay )
     invalidatableOverlays.append ( overlay )
-    onChange?( .updated )
+    onChange?( .updated ( needsBaseRedraw: true ) )
   }
 
 
@@ -250,16 +252,16 @@ public struct MessageBoxButton {
 
 final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalidating, OverlayBoundsReporting {
 
-  private let messageBox  : MessageBox
-  private let context     : AppContext
-  private let onDismiss   : () -> Void
-  private var buttons     : [Button]
-  private var activeIndex : Int
-  private let onUpdate    : (() -> Void)?
-  private var cachedLayout: MessageBox.Layout?
-  private var needsFullRedraw: Bool
+  private let messageBox        : MessageBox
+  private let context           : AppContext
+  private let onDismiss         : () -> Void
+  private var buttons           : [Button]
+  private var activeIndex       : Int
+  private let onUpdate          : ((Bool) -> Void)?
+  private var cachedLayout      : MessageBox.Layout?
+  private var needsFullRedraw   : Bool
   private var dirtyButtonIndices: Set<Int>
-  private var didRenderLastPass: Bool
+  private var didRenderLastPass : Bool
 
   // Reserve a blank row for the horizontal rule and another for the button row so
   // the divider never overlaps the message body.
@@ -280,7 +282,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     style     : ElementStyle,
     buttons   : [MessageBoxButton],
     onDismiss : @escaping () -> Void,
-    onUpdate  : (() -> Void)?
+    onUpdate  : ((Bool) -> Void)?
   ) {
 
     var body = message
@@ -519,7 +521,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
 
         if activeIndex != previousIndex {
           markButtonsDirty([previousIndex, activeIndex])
-          onUpdate?()
+          onUpdate?( false )
           return true
         }
 
@@ -645,7 +647,7 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
   private let style             : ElementStyle
   private let onSelect          : ((SelectionListItem) -> Void)?
   private let onDismiss         : () -> Void
-  private let onUpdate          : (() -> Void)?
+  private let onUpdate          : ((Bool) -> Void)?
   private let highlightPalette  : (foreground: ANSIForecolor, background: ANSIBackcolor)
 
   private var activeIndex       : Int
@@ -669,7 +671,7 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
     style    : ElementStyle,
     onSelect : ((SelectionListItem) -> Void)?,
     onDismiss: @escaping () -> Void,
-    onUpdate : (() -> Void)?
+    onUpdate : ((Bool) -> Void)?
   ) {
 
     self.items             = items
@@ -801,7 +803,7 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
         guard activeIndex != previousIndex else { return false }
 
         markItemsDirty ( [previousIndex, activeIndex] )
-        onUpdate?()
+        onUpdate?( false )
         return true
 
       case .key(let key) :
@@ -890,7 +892,6 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
     guard !isDismissed else { return }
     isDismissed = true
     onDismiss()
-    onUpdate?()
   }
 
   private func markItemsDirty ( _ indexes: [Int] ) {
