@@ -124,15 +124,20 @@ public class Renderer {
     )
 
     
+    var hasRenderedBase = false
+
     func handleFullClear () {
-      
+
       // so annoyingly, it turns out that we can't actually just use cls for this as it just resets
       // the terminal's defaults. arse
       // send ( .cls )
-      
+
       clear ( rectangle: BoxBounds ( row: 1, col: 1, width: Int ( size.ws_col ), height: Int ( size.ws_row ) ) )
-      
+
       if !base.isEmpty {
+        // we track the base rendering so later logic knows not to double-draw the same elements
+        // during a full clear cycle. skipping the second render prevents pointless redraw work.
+        hasRenderedBase = true
         render (
           elements: base,
           in      : size
@@ -179,6 +184,15 @@ public class Renderer {
       case .none              : break
       case .full              : handleFullClear()
       case .overlayDismissal  : handleOverlayDismissal()
+    }
+
+    if !base.isEmpty && !hasRenderedBase {
+      // render the base when we did not go through the full clear path so overlays keep their
+      // expected stacking order.
+      render (
+        elements: base,
+        in      : size
+      )
     }
 
     if !overlay.isEmpty {
