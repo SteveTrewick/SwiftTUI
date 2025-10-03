@@ -489,8 +489,7 @@ final class RendererRenderFrameTests: XCTestCase {
         let renderer = Renderer()
         let size = winsize(ws_row: 24, ws_col: 80, ws_xpixel: 0, ws_ypixel: 0)
 
-        let baseExpectation = expectation(description: "Base should not rerender on overlay clear")
-        baseExpectation.isInverted = true
+        let baseExpectation = expectation(description: "Base should rerender on overlay clear")
 
         let invalidationExpectation = expectation(description: "Overlay invalidation should not run for overlay-only clear")
         invalidationExpectation.isInverted = true
