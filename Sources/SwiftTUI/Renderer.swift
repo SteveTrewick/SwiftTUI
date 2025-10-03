@@ -47,7 +47,7 @@ public class Renderer {
   // use to send text that should be displayed, to incude ANSI sequences.
   // this one tracks the cursor position
   
-  public func display (_ ansi: AnsiSequence...) {
+  public func display (_ ansi: AnsiSequence... ) {
     DispatchQueue.main.async { [self] in
       for seq in ansi {
         send(seq)
@@ -59,7 +59,7 @@ public class Renderer {
   
   
   // same but for an array of ANSI sequences
-  public func render (_ ansi: [AnsiSequence]?, tracking: Bool = true) {
+  public func render (_ ansi: [AnsiSequence]?, tracking: Bool = true ) {
 
     guard let ansi = ansi else { return }
     
@@ -128,9 +128,10 @@ public class Renderer {
       .backcolor(defaultStyle.background)
     )
 
+    
     switch clearMode {
-      case .none:
-        break
+      
+    case .none: break
 
       case .full:
         // A resize or explicit full clear demands a terminal reset so the chrome can be redrawn.
@@ -148,17 +149,17 @@ public class Renderer {
       case .overlayDismissal:
         // Overlays render between the menu and status rows. When they disappear we punch a DECERA window
         // through that region so we do not disturb the chrome framing the workspace.
-        let rows    = Int(size.ws_row)
-        let columns = Int(size.ws_col)
+        let rows    = Int ( size.ws_row )
+        let columns = Int ( size.ws_col )
         let height  = rows - 2
 
         if columns > 0 && height > 0 {
           clear (
-            rectangle: BoxBounds(
-              row   : 2,
-              col   : 1,
-              width : columns,
-              height: height
+            rectangle: BoxBounds (
+              row    : 2,
+              col    : 1,
+              width  : columns,
+              height : height
             )
           )
         }
@@ -174,8 +175,8 @@ public class Renderer {
 
     // Reinstate the palette so subsequent prints outside the renderer stay consistent
     send (
-      .forecolor(defaultStyle.foreground),
-      .backcolor(defaultStyle.background)
+      .forecolor ( defaultStyle.foreground ),
+      .backcolor ( defaultStyle.background )
     )
   }
 }
