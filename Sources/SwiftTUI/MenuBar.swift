@@ -7,8 +7,9 @@ public final class MenuItem : Renderable {
   public var action  : MenuAction
   public var context : AppContext
 
-  private var originRow: Int
-  private var originCol: Int
+  private var originRow        : Int
+  private var originCol        : Int
+  private var isHighlightActive: Bool
 
   // Expose the anchor through a computed property so overlays can align
   // themselves relative to the menu item while keeping the mutable state local
@@ -25,8 +26,9 @@ public final class MenuItem : Renderable {
     self.context    = context
     self.action     = action
     self.style      = style
-    self.originRow  = 1
-    self.originCol  = 1
+    self.originRow         = 1
+    self.originCol         = 1
+    self.isHighlightActive = false
     
   }
 
@@ -38,10 +40,14 @@ public final class MenuItem : Renderable {
   func performAction() {
     action.execute(context, self)
   }
-  
+
   func setOrigin ( row: Int, col: Int ) {
     originRow = row
     originCol = col
+  }
+
+  func setHighlightActive ( _ active: Bool ) {
+    isHighlightActive = active
   }
 
 
@@ -74,11 +80,15 @@ public final class MenuItem : Renderable {
     // Build the sequence list beginning with cursor placement and the color
     // attributes that define this item's visual style. These must precede any
     // text so the glyphs inherit the intended foreground/background pairing.
+    let highlightPalette = MenuItem.highlightPalette ( for: style )
+    let activeBackground = isHighlightActive ? highlightPalette.background : style.background
+    let activeForeground = isHighlightActive ? highlightPalette.foreground : style.foreground
+
     var sequences: [AnsiSequence] = [
       .hideCursor,
       .moveCursor ( row: originRow, col: originCol ),
-      .backcolor  ( style.background ),
-      .forecolor  ( style.foreground )
+      .backcolor  ( activeBackground ),
+      .forecolor  ( activeForeground )
     ]
 
     // Insert a leading space when possible. This gives each menu entry a
@@ -119,6 +129,49 @@ public final class MenuItem : Renderable {
     //sequences.append(.resetFGBG)
 
     return sequences
+  }
+
+  private static func highlightPalette ( for style: ElementStyle ) -> (foreground: ANSIForecolor, background: ANSIBackcolor) {
+
+    // Mirror the overlay palette rules so menu entries highlight consistently
+    // with their submenus regardless of the underlying theme configuration.
+    let highlightBackground = MenuItem.backcolor ( for: style.foreground )
+    let fallbackForeground  = MenuItem.forecolor ( for: style.background )
+
+    if highlightBackground == style.background {
+      // When the fallback would vanish against the base style pick white so the
+      // active menu is still obvious in darker colour schemes.
+      return (fallbackForeground, .white)
+    }
+
+    return (fallbackForeground, highlightBackground)
+  }
+
+  private static func backcolor ( for forecolor: ANSIForecolor ) -> ANSIBackcolor {
+    switch forecolor {
+      case .black  : return .black
+      case .red    : return .red
+      case .green  : return .green
+      case .yellow : return .yellow
+      case .blue   : return .blue
+      case .magenta: return .magenta
+      case .cyan   : return .vyan
+      case .white  : return .white
+    }
+  }
+
+  private static func forecolor ( for backcolor: ANSIBackcolor ) -> ANSIForecolor {
+    switch backcolor {
+      case .black  : return .black
+      case .red    : return .red
+      case .green  : return .green
+      case .yellow : return .yellow
+      case .blue   : return .blue
+      case .magenta: return .magenta
+      case .vyan   : return .cyan
+      case .white  : return .white
+      case .grey   : return .white
+    }
   }
 }
 

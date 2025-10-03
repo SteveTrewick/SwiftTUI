@@ -48,6 +48,8 @@ public struct MenuAction {
   public static func anchoredSelectionList ( items: [SelectionListItem], rowOffset: Int = 1, colOffset: Int = 0, row: Int? = nil, col: Int? = nil ) -> MenuAction {
     MenuAction { context, item in
 
+      guard !items.isEmpty else { return }
+
       // Derive overlay coordinates from the menu item's stored origin so the
       // submenu appears adjacent to its trigger. Offsets keep the overlay a
       // predictable distance away (defaulting to the row beneath the menu bar)
@@ -57,13 +59,22 @@ public struct MenuAction {
       let anchoredRow = max(1, anchor.row + rowOffset)
       let anchoredCol = max(1, anchor.col + colOffset)
 
+      // Highlight the owning menu entry while its submenu is visible so the
+      // user can immediately see which heading spawned the overlay.
+      item.setHighlightActive(true)
+
       // Allow overriding coordinates explicitly so centred or bespoke layouts
       // remain possible while the default anchored offsets stay predictable.
       context.overlays.drawSelectionList(
         items,
         context: context,
         row    : row ?? anchoredRow,
-        col    : col ?? anchoredCol
+        col    : col ?? anchoredCol,
+        onDismiss: {
+          // Once the submenu is dismissed restore the original palette so the
+          // menu bar returns to its idle state.
+          item.setHighlightActive(false)
+        }
       )
     }
   }
