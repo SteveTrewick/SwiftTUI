@@ -11,7 +11,7 @@ import Glibc
 
 
 
-public struct AppContext {
+public class AppContext {
 
   var input   : TerminalInputController
   var output  : Renderer

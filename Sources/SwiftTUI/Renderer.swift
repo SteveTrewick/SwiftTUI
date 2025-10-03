@@ -1,7 +1,7 @@
 
 import Foundation
 
-public struct Renderer {
+public class Renderer {
 
   public enum ClearMode {
     case none
@@ -9,7 +9,11 @@ public struct Renderer {
     case overlayDismissal
   }
 
-  public init() {}
+  weak var context: AppContext?
+  
+  public init ( context: AppContext? = nil ) {
+    self.context = context
+  }
 
   // use to send ANSI sequences to e.g get responses
   // these sequences do not durectly update the screem, so we do not track the cursor
