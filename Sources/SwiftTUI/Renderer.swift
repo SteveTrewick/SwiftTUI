@@ -16,8 +16,8 @@ public class Renderer {
   }
 
   
-  // we begin to repeat ourselves, and even though "uncle" bo can GFH
-  // we should still extract this
+  // we begin to repeat ourselves, and even though "uncle" bob can GFH
+  // we should still extract this. And tbqhwyf the following are all kinda repeaty too.
   func send ( _ seq: AnsiSequence ) {
     
     print  ( seq.description, terminator: "")
