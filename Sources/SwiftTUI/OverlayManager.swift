@@ -172,6 +172,30 @@ public final class OverlayManager {
 
       let input = bufferedInputs[processedCount]
 
+      if case .key(let key) = input, key == .ESC {
+        let nextIndex      = processedCount + 1
+        let hasLookahead   = nextIndex < limit
+
+        if hasLookahead {
+          let lookaheadInput = bufferedInputs[nextIndex]
+
+          switch lookaheadInput {
+            case .ascii, .unicode:
+              // Option-key menu accelerators surface as ESC followed by a
+              // printable character. When a modal overlay is active those
+              // chords should be swallowed so the overlay stays visible and
+              // the background menu cannot react to the shortcut. By skipping
+              // both inputs here we keep ESC available for explicit overlay
+              // dismissal without letting chords leak through.
+              processedCount += 2
+              handledAny      = true
+              continue
+            default:
+              break
+          }
+        }
+      }
+
       if focusedOverlay.handle(input) {
         handledAny = true
       }
