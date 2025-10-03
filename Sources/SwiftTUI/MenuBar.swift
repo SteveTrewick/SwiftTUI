@@ -60,58 +60,41 @@ public final class MenuItem : Renderable {
 
   public func render ( in size: winsize ) -> [AnsiSequence]? {
 
-    let rows    = Int(size.ws_row)
-    let columns = Int(size.ws_col)
-
     guard !name.isEmpty else { return nil }
 
-    // Validate the terminal dimensions before emitting any bytes. Rendering
-    // outside the reported window would at best waste work and at worst leave
-    // the cursor in an unexpected position for the caller.
-    guard rows > 0 && columns > 0 else { return nil }
-    guard originRow >= 1 && originRow <= rows else { return nil }
-    guard originCol >= 1 && originCol <= columns else { return nil }
+    let columns     = Int(size.ws_col)
+    let available   = columns - originCol + 1
+    let targetWidth = width ( maxWidth: available )
 
-    var remaining = columns - originCol + 1
-    // If the menu origin is beyond the last visible column there is nothing to
-    // paint; return early so we do not emit color resets or other stray bytes.
-    guard remaining > 0 else { return nil }
+    guard available > 0 else { return nil }
+    guard targetWidth > 0 else { return nil }
 
-    // Build the sequence list beginning with cursor placement and the color
-    // attributes that define this item's visual style. These must precede any
-    // text so the glyphs inherit the intended foreground/background pairing.
     let highlightPalette = ElementStyle.highlightPalette ( for: style )
     let activeBackground = isHighlightActive ? highlightPalette.background : style.background
     let activeForeground = isHighlightActive ? highlightPalette.foreground : style.foreground
 
+    var remaining  = targetWidth
     var sequences: [AnsiSequence] = [
       .hideCursor,
       .moveCursor ( row: originRow, col: originCol ),
       .backcolor  ( activeBackground ),
-      .forecolor  ( activeForeground )
+      .forecolor  ( activeForeground ),
     ]
 
-    // Insert a leading space when possible. This gives each menu entry a
-    // consistent gutter so adjacent labels do not touch one another.
     if remaining > 0 {
-      sequences.append(.text(" "))
+      sequences.append ( .text(" ") )
       remaining -= 1
     }
 
     if remaining > 0 {
-      let firstChar = String(name.prefix(1))
-      // Emit the first character in bold to signal the keyboard accelerator.
-      // The highlight allows users to see which key activates this menu item.
-      sequences.append(.bold(firstChar))
+      let firstChar = String ( name.prefix(1) )
+      sequences.append ( .bold(firstChar) )
       remaining -= 1
 
       if remaining > 0 {
-        let rest = String(name.dropFirst().prefix(remaining))
+        let rest = String ( name.dropFirst().prefix(remaining) )
         if !rest.isEmpty {
-          // Append the remaining portion of the label that fits within the
-          // allocated width. Truncation is handled implicitly by prefixing with
-          // the number of columns still available.
-          sequences.append(.text(rest))
+          sequences.append ( .text(rest) )
           remaining -= rest.count
         }
       }
@@ -119,16 +102,15 @@ public final class MenuItem : Renderable {
 
     if remaining > 0 {
       let trailingSpaceCount = min(1, remaining)
-      // Pad with a trailing space when there is still room. This ensures the
-      // background color extends through the cell immediately following the
-      // label, producing a solid block under the menu entry.
-      sequences.append(.text(String(repeating: " ", count: trailingSpaceCount)))
+      sequences.append ( .text(String(repeating: " ", count: trailingSpaceCount)) )
       remaining -= trailingSpaceCount
     }
 
-    //sequences.append(.resetFGBG)
+    // Wrap the assembled row so the renderer can validate placement alongside other components.
+    let bounds  = BoxBounds ( row: originRow, col: originCol, width: targetWidth, height: 1 )
+    let element = TUIElement ( bounds: bounds, sequences: sequences )
 
-    return sequences
+    return element.render ( in: size )
   }
 
 }

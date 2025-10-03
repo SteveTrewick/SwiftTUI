@@ -74,24 +74,8 @@ public final class Button: Renderable, OverlayInputHandling {
   }
 
   let hex = HexDump()
-  public func render(in size: winsize) -> [AnsiSequence]? {
+  public func render ( in size: winsize ) -> [AnsiSequence]? {
 
-    let rows    = Int(size.ws_row)
-    let columns = Int(size.ws_col)
-
-    guard rows > 0 && columns > 0 else { return nil }
-
-    let top    = bounds.row
-    let left   = bounds.col
-    let bottom = top  + max(bounds.height, 1) - 1
-    let right  = left + bounds.width        - 1
-
-    guard top    >= 1 else { return nil }
-    guard left   >= 1 else { return nil }
-    guard bottom <= rows else { return nil }
-    guard right  <= columns else { return nil }
-
-    // Only render within the first row of the supplied bounds for now.
     guard bounds.height >= 1 else { return nil }
     guard bounds.width  >= minimumWidth else { return nil }
 
@@ -102,30 +86,24 @@ public final class Button: Renderable, OverlayInputHandling {
                       + displayText
                       + String(repeating: " ", count: rightPadding)
 
-    let baseBackground     = style.background
-    let baseForeground     = style.foreground
-    let highlightBack   = highlightBackground ?? baseBackground
-    let highlightFore   = highlightForeground ?? baseForeground
-    let shouldHighlight = isHighlightActive
+    let baseBackground    = style.background
+    let baseForeground    = style.foreground
+    let highlightBack     = highlightBackground ?? baseBackground
+    let highlightFore     = highlightForeground ?? baseForeground
+    let shouldHighlight   = isHighlightActive
 
     // The highlight palette keeps overlays visually coherent without forcing
     // every caller to understand ANSI attributes.  Previously inactive buttons
     // used SGR 2 dimming to hint at focus order, however that made text hard to
     // read on terminals with low contrast.  Instead we now leave them rendered
     // with their base palette so they are merely not highlighted.
-    let activeBackground = shouldHighlight ? highlightBack : baseBackground
-    let activeForeground = shouldHighlight ? highlightFore : baseForeground
+    let activeBackground  = shouldHighlight ? highlightBack : baseBackground
+    let activeForeground  = shouldHighlight ? highlightFore : baseForeground
+    let rowBounds         = BoxBounds ( row: bounds.row, col: bounds.col, width: bounds.width, height: 1 )
+    let rowStyle          = ElementStyle ( foreground: activeForeground, background: activeBackground )
+    let element           = TUIElement.textRow ( bounds: rowBounds, style: rowStyle, text: paddedContent, includeHideCursor: false )
 
-
-    let seqs : [AnsiSequence] =  [
-      .moveCursor(row: bounds.row, col: bounds.col),
-      .backcolor (activeBackground),
-      .forecolor (activeForeground),
-      .text(paddedContent),
-    ]
-
-    
-    return seqs
+    return element.render ( in: size )
   }
 
   @discardableResult

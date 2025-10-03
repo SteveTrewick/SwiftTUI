@@ -110,26 +110,25 @@ public struct MessageBox : Renderable {
     let bounds     = layout.bounds
     let boxElement = BoxElement(bounds: bounds, style: element.style)
 
-    guard var sequences = Box(element: boxElement).render ( in: size ) else { return nil }
+    guard let boxSequences = Box ( element: boxElement ).render ( in: size ) else { return nil }
+
+    // Treat the frame and each body line as discrete elements so overlays can share the same validation path.
+    var elements: [TUIElement] = [ TUIElement ( bounds: bounds, sequences: boxSequences ) ]
 
     let textStartRow  = bounds.row + 1
     let textStartCol  = bounds.col + 1
     let textAreaWidth = bounds.width - 2
+    let textStyle     = ElementStyle ( foreground: boxElement.style.foreground, background: boxElement.style.background )
 
     for (idx, line) in layout.lines.enumerated() {
 
       let rowPosition = textStartRow + idx
       let padded = " " + line + String(repeating: " ", count: max(0, textAreaWidth - 1 - line.count))
-
-      sequences += [
-        .hideCursor,
-        .moveCursor ( row: rowPosition, col: textStartCol ),
-        .backcolor  ( boxElement.style.background ),
-        .forecolor  ( boxElement.style.foreground ),
-        .text       ( padded ),
-      ]
+      let rowBounds = BoxBounds ( row: rowPosition, col: textStartCol, width: textAreaWidth, height: 1 )
+      let element   = TUIElement.textRow ( bounds: rowBounds, style: textStyle, text: padded )
+      elements.append ( element )
     }
 
-    return sequences
+    return TUIElement.render ( elements, in: size )
   }
 }

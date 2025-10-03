@@ -388,7 +388,8 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
       needsFullRedraw = true
     }
 
-    var sequences: [AnsiSequence] = []
+    // Collect each segment as a TUIElement so the renderer only deals with validated bounds.
+    var elements: [TUIElement] = []
 
     let isFullRedraw = needsFullRedraw
 
@@ -400,13 +401,13 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
         markAllButtonsDirty()
         return nil
       }
-      sequences += boxSequences
+      elements.append ( TUIElement ( bounds: layout.bounds, sequences: boxSequences ) )
       needsFullRedraw = false
     }
 
     guard !buttons.isEmpty else {
       didRenderLastPass = true
-      return sequences
+      return TUIElement.render ( elements, in: size )
     }
 
     let bounds               = layout.bounds
@@ -419,7 +420,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
       // the dialog itself is narrower than the button row so nothing could render safely.
       log("MessageBoxOverlay: skipping buttons, minimum width \(minimumButtonWidths) exceeds interior width \(interiorWidth)")
       didRenderLastPass = true
-      return sequences
+      return TUIElement.render ( elements, in: size )
     }
 
     let availableGap = max(0, interiorWidth - minimumButtonWidths)
@@ -449,13 +450,15 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
       // Align the divider with the message box interior so the footer sits flush with
       // the frame; keeping the buttons centred preserves their existing placement while
       // avoiding a ragged left edge.
-      sequences += [
+      let ruleBounds = BoxBounds ( row: ruleRow, col: ruleStartCol, width: interiorWidth, height: 1 )
+      let ruleSequences: [AnsiSequence] = [
         .hideCursor,
         .moveCursor ( row: ruleRow, col: ruleStartCol ),
         .backcolor  ( ruleStyle.background ),
         .forecolor  ( ruleStyle.foreground ),
-        .box        ( .horiz(interiorWidth) )
+        .box        ( .horiz(interiorWidth) ),
       ]
+      elements.append ( TUIElement ( bounds: ruleBounds, sequences: ruleSequences ) )
     }
 
     if isFullRedraw {
@@ -465,7 +468,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     }
 
     var currentCol = startCol
-    
+
     //MARK: debug change
     // dropped first button to see if one of the dim buttons would render in place,
     // which they did, so their attribs appear to be sane
@@ -488,7 +491,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
       )
 
       if dirtyButtonIndices.contains(index), let buttonSequences = button.render(in: size) {
-        sequences += buttonSequences
+        elements.append ( TUIElement ( bounds: button.bounds, sequences: buttonSequences ) )
       }
 
       currentCol += button.minimumWidth + spacing
@@ -499,7 +502,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
 
     didRenderLastPass = true
 
-    return sequences
+    return TUIElement.render ( elements, in: size )
   }
 
   func handle(_ input: TerminalInput.Input) -> Bool {
@@ -681,7 +684,8 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
       needsFullRedraw = true
     }
 
-    var sequences: [AnsiSequence] = []
+    // Build a list of row elements that the renderer can flatten into ANSI output.
+    var elements: [TUIElement] = []
 
     if needsFullRedraw {
 
@@ -695,14 +699,14 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
         return nil
       }
 
-      sequences += boxSequences
+      elements.append ( TUIElement ( bounds: bounds, sequences: boxSequences ) )
       needsFullRedraw = false
       markAllItemsDirty()
     }
 
     guard !dirtyItemIndices.isEmpty else {
       didRenderLastPass = true
-      return sequences
+      return TUIElement.render ( elements, in: size )
     }
 
     let interiorWidth = bounds.width - 2
@@ -727,18 +731,16 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
       let background = index == activeIndex ? highlightBackground : baseBackground
       let foreground = index == activeIndex ? highlightForeground : baseForeground
 
-      sequences += [
-        .moveCursor(row: textStartRow + index, col: textStartCol),
-        .backcolor(background),
-        .forecolor(foreground),
-        .text(padded)
-      ]
+      let rowBounds = BoxBounds ( row: textStartRow + index, col: textStartCol, width: clampedWidth, height: 1 )
+      let rowStyle  = ElementStyle ( foreground: foreground, background: background )
+      let element   = TUIElement.textRow ( bounds: rowBounds, style: rowStyle, text: padded, includeHideCursor: false )
+      elements.append ( element )
     }
 
     dirtyItemIndices.removeAll()
     didRenderLastPass = true
 
-    return sequences
+    return TUIElement.render ( elements, in: size )
   }
 
   func handle ( _ input: TerminalInput.Input ) -> Bool {
