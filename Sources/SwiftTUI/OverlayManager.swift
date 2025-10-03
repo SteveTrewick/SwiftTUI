@@ -180,7 +180,14 @@ public final class OverlayManager {
     }
 
     if processedCount > 0 {
-      bufferedInputs.removeFirst(processedCount)
+      // Clearing an overlay during dispatch can empty the buffer via the guard
+      // above. Guard the removal so we never walk past the shrunken array while
+      // draining events delivered to an overlay that dismissed itself.
+      if bufferedInputs.count >= processedCount {
+        bufferedInputs.removeFirst(processedCount)
+      } else {
+        bufferedInputs.removeAll()
+      }
     }
 
     return handledAny || sawInteractiveOverlay
