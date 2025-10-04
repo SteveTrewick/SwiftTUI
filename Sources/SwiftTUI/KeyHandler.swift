@@ -15,8 +15,6 @@ final class KeyHandler {
   typealias ControlInputHandler   = [TerminalInput.Input: () -> Bool]
   typealias BytesInputHandler     = ( Bytes ) -> Bool
   typealias ResponseInputHandler  = ( TerminalInput.Response ) -> Bool
-  
-  //TODO: change the global handler to use this type
   typealias GlobalControlHandler  = ( TerminalInput.Input ) -> Bool
   
   // Each table entry is immutable so callers make one decision about what the
@@ -26,16 +24,14 @@ final class KeyHandler {
     let control                     : ControlInputHandler?
     let bytes                       : BytesInputHandler?
     let responses                   : ResponseInputHandler?
-    let global                      : ControlInputHandler?
+    let global                      : GlobalControlHandler?
     let swallowPrintableAfterEscape : Bool
 
     init(
       control                     : ControlInputHandler?       = nil,
       bytes                       : BytesInputHandler?         = nil,
       responses                   : ResponseInputHandler?      = nil,
-      
-      //TODO: use GlobalControlHandler
-      global                      : ControlInputHandler?       = nil,
+      global                      : GlobalControlHandler?      = nil,
       
       swallowPrintableAfterEscape : Bool                       = false
     ) {
@@ -91,8 +87,7 @@ final class KeyHandler {
       case .key, .cursor :
         if let action = handler.control?[input] { return action() }
         
-        //TODO: if let action = handler.global { return action ( input ) }
-        if let action = handler.global?[input]  { return action() }
+        if let action = handler.global { return action ( input ) }
 
       case .ascii   ( let data ) :
         if let action = handler.bytes { return action ( .ascii ( data ) ) }
