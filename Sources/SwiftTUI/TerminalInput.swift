@@ -76,7 +76,7 @@ public struct TerminalInput {
   // more features
   
   public enum Response : Hashable {
-    case CUROSR (row: Int, column: Int)  // for now just cursor position
+    case CURSOR (row: Int, column: Int)  // for now just cursor position
   }
   
   
@@ -179,7 +179,7 @@ public struct TerminalInput {
         guard let row    = Int(sequence.params[0])  else { return nil } // NB this will crash if params
         guard let column = Int(sequence.params[1])  else { return nil } // aren't there. hmm.
 
-        return .CUROSR(row: row, column: column)
+        return .CURSOR(row: row, column: column)
 
       default : return nil
     }

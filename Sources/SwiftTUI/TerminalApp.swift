@@ -108,7 +108,7 @@ public final class TerminalApp {
   // we probably nned to track the cursor position don't we?
   func process ( _ response: TerminalInput.Response ) {
     switch response {
-      case .CUROSR(let row, let col): cursor = Cursor(row: row, col: col)
+      case .CURSOR(let row, let col): cursor = Cursor(row: row, col: col)
                                       //log( String(describing: cursor) )
     }
   }
@@ -180,7 +180,7 @@ public final class TerminalApp {
     let responseHandler : KeyHandler.ResponseInputHandler = { [weak self] response in
       guard let app = self else { return false }
 
-      guard case .CUROSR = response else { return false }
+      guard case .CURSOR = response else { return false }
 
       // The dispatcher no longer performs wildcard dictionary matching, so this
       // closure inspects the payload and decides whether it wants to swallow the
