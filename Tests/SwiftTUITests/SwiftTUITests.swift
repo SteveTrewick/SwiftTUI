@@ -346,6 +346,99 @@ final class MessageBoxOverlayRenderingTests: XCTestCase {
         }
     }
 
+    func testMessageBoxButtonsAdoptHighlightPalette() {
+        let manager = OverlayManager()
+        let context = AppContext(overlays: manager)
+        let style = ElementStyle(foreground: .white, background: .black)
+        let highlightPalette = ElementStyle.highlightPalette(for: style)
+
+        manager.drawMessageBox(
+          "Palette",
+          context     : context,
+          row         : 1,
+          col         : 1,
+          style       : style,
+          buttonText  : "OK",
+          activationKey: .RETURN,
+          buttons     : [
+            MessageBoxButton(text: "First"),
+            MessageBoxButton(text: "Second")
+          ]
+        )
+
+        guard let overlay = manager.activeOverlays().last as? MessageBoxOverlay else {
+            return XCTFail("Expected message box overlay")
+        }
+
+        let size = winsize(ws_row: 24, ws_col: 80, ws_xpixel: 0, ws_ypixel: 0)
+
+        guard let initialSequences = overlay.render(in: size) else {
+            return XCTFail("Expected initial render output")
+        }
+
+        // The first button is highlighted on registration, so it should use the
+        // highlight palette while the second button retains the base style.
+        let firstInitialColors = buttonPalettes(for: "[ First ]", in: initialSequences)
+        XCTAssertFalse(firstInitialColors.isEmpty, "Expected render output for the first button")
+        XCTAssertTrue(
+            firstInitialColors.allSatisfy { palette in
+                palette.foreground == highlightPalette.foreground && palette.background == highlightPalette.background
+            },
+            "Highlighted button should render with the highlight palette"
+        )
+
+        let secondInitialColors = buttonPalettes(for: "[ Second ]", in: initialSequences)
+        XCTAssertFalse(secondInitialColors.isEmpty, "Expected render output for the second button")
+        XCTAssertTrue(
+            secondInitialColors.allSatisfy { palette in
+                palette.foreground == style.foreground && palette.background == style.background
+            },
+            "Inactive button should render with the base palette"
+        )
+
+        XCTAssertTrue(overlay.handle(.cursor(.right)), "Cursor input should move the highlight")
+
+        guard let updateSequences = overlay.render(in: size) else {
+            return XCTFail("Expected highlight update output")
+        }
+
+        // After the highlight moves the palettes should swap so the updated row
+        // continues to render with the highlight colours.
+        let firstUpdateColors = buttonPalettes(for: "[ First ]", in: updateSequences)
+        XCTAssertFalse(firstUpdateColors.isEmpty, "Expected update output for the first button")
+        XCTAssertTrue(
+            firstUpdateColors.allSatisfy { palette in
+                palette.foreground == style.foreground && palette.background == style.background
+            },
+            "First button should revert to the base palette after losing the highlight"
+        )
+
+        let secondUpdateColors = buttonPalettes(for: "[ Second ]", in: updateSequences)
+        XCTAssertFalse(secondUpdateColors.isEmpty, "Expected update output for the second button")
+        XCTAssertTrue(
+            secondUpdateColors.allSatisfy { palette in
+                palette.foreground == highlightPalette.foreground && palette.background == highlightPalette.background
+            },
+            "Second button should adopt the highlight palette when selected"
+        )
+    }
+
+    private func buttonPalettes(for label: String, in sequences: [AnsiSequence]) -> [(foreground: ANSIForecolor, background: ANSIBackcolor)] {
+        var palettes: [(foreground: ANSIForecolor, background: ANSIBackcolor)] = []
+
+        for (index, sequence) in sequences.enumerated() {
+            guard case .text(let text) = sequence, text == label else { continue }
+            guard index >= 2 else { continue }
+
+            guard case let .forecolor(foreground) = sequences[index - 1] else { continue }
+            guard case let .backcolor(background) = sequences[index - 2] else { continue }
+
+            palettes.append((foreground, background))
+        }
+
+        return palettes
+    }
+
     func testMessageBoxRegistrationEmitsUpdateChange() {
         let manager = OverlayManager()
         let context = AppContext(overlays: manager)
