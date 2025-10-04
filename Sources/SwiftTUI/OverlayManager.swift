@@ -337,26 +337,264 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     }
   }
 
-  private let messageBox        : MessageBox
-  private let context           : AppContext
-  private let onDismiss         : () -> Void
-  private var buttonControllers : [ButtonController]
-  private var activeIndex       : Int
-  private let onUpdate          : ((Bool) -> Void)?
-  private var cachedLayout      : MessageBox.Layout?
-  private var needsFullRedraw   : Bool
-  private var dirtyButtonIndices: Set<Int>
-  private var didRenderLastPass : Bool
+  // Cache MessageBox layout results so the overlay can cheaply detect
+  // geometry changes and only repaint the expensive body when needed.
+  final class LayoutCache {
+
+    private var cachedLayout      : MessageBox.Layout?
+    private var needsFullRedraw   : Bool
+    private var didRenderLastPass : Bool
+
+    init() {
+      cachedLayout      = nil
+      needsFullRedraw   = true
+      didRenderLastPass = false
+    }
+
+    var layout : MessageBox.Layout? { cachedLayout }
+    var bounds : BoxBounds?        { cachedLayout?.bounds }
+
+    func invalidate() {
+      cachedLayout      = nil
+      needsFullRedraw   = true
+      didRenderLastPass = false
+    }
+
+    func refresh ( for messageBox: MessageBox, in size: winsize ) -> MessageBox.Layout? {
+
+      guard let layout = messageBox.layout(in: size) else {
+        invalidate()
+        return nil
+      }
+
+      if !didRenderLastPass {
+        needsFullRedraw = true
+      }
+
+      if let cached = cachedLayout {
+        if MessageBoxOverlay.layout(layout, matches: cached) == false {
+          needsFullRedraw = true
+        }
+      } else {
+        needsFullRedraw = true
+      }
+
+      cachedLayout = layout
+      return layout
+    }
+
+    func consumeNeedsFullRedraw() -> Bool {
+      let shouldRedraw = needsFullRedraw
+      needsFullRedraw  = false
+      return shouldRedraw
+    }
+
+    func markDidRender() {
+      didRenderLastPass = true
+    }
+
+    func markRenderFailed() {
+      didRenderLastPass = false
+      needsFullRedraw   = true
+    }
+  }
+
+  // Isolate footer layout, rendering, and input handling so the overlay can
+  // orchestrate the message body without micromanaging button geometry.
+  final class Footer {
+
+    private var buttonControllers  : [ButtonController]
+    private var dirtyButtonIndices : Set<Int>
+    private var activeIndex        : Int
+    private let baseStyle          : ElementStyle
+    private let onDismiss          : () -> Void
+    private let onUpdate           : ((Bool) -> Void)?
+    private let minimumButtonWidth : Int
+
+    init(
+      buttons          : [MessageBoxButton],
+      style            : ElementStyle,
+      highlightPalette : (foreground: ANSIForecolor, background: ANSIBackcolor),
+      context          : AppContext,
+      onDismiss        : @escaping () -> Void,
+      onUpdate         : ((Bool) -> Void)?
+    ) {
+
+      self.buttonControllers = buttons.map { config in
+        ButtonController(
+          configuration   : config,
+          style           : style,
+          highlightPalette: highlightPalette,
+          context         : context,
+          onDismiss       : onDismiss
+        )
+      }
+      self.dirtyButtonIndices = Set(self.buttonControllers.indices)
+      self.activeIndex        = 0
+      self.baseStyle          = style
+      self.onDismiss          = onDismiss
+      self.onUpdate           = onUpdate
+      self.minimumButtonWidth = self.buttonControllers.reduce(0) { $0 + $1.minimumWidth }
+    }
+
+    static func minimumInteriorWidth ( for buttons: [MessageBoxButton] ) -> Int {
+
+      guard !buttons.isEmpty else { return 0 }
+
+      let labelWidth = buttons.reduce(0) { width, config in
+        width + MessageBoxOverlay.buttonWidth(for: config.text)
+      }
+
+      // The message body can wrap but the controls cannot vanish, so favour the
+      // button row when reserving space for the overlay. With buttons now drawn
+      // directly within the dialog interior we only need to reserve the raw
+      // button widths.
+      return labelWidth
+    }
+
+    var debugActiveIndex: Int { activeIndex }
+
+    func invalidate() {
+      dirtyButtonIndices = Set(buttonControllers.indices)
+    }
+
+    func render ( in size: winsize, layout: MessageBox.Layout, isFullRedraw: Bool ) -> [TUIElement] {
+
+      guard !buttonControllers.isEmpty else { return [] }
+
+      let bounds        = layout.bounds
+      let interiorWidth = bounds.width - 2
+
+      guard minimumButtonWidth <= interiorWidth else {
+        // Logging the refusal makes it obvious why callers lose their buttons; the guard only fires when
+        // the dialog itself is narrower than the button row so nothing could render safely.
+        log("MessageBoxOverlay: skipping buttons, minimum width \(minimumButtonWidth) exceeds interior width \(interiorWidth)")
+        return []
+      }
+
+      let gapCount     = max(buttonControllers.count - 1, 0)
+      let availableGap = max(0, interiorWidth - minimumButtonWidth)
+      // Prefer to preserve the existing two-column gutter, but collapse it evenly
+      // across the row when space runs tight so every button can still render.
+      let spacing      = gapCount > 0 ? min(2, availableGap / gapCount) : 0
+      let buttonRow    = bounds.row + bounds.height - 2
+
+      // Centre the button row while keeping the controls on the same baseline as the
+      // rule above. Any slack that remains after spacing is split across the leading
+      // and trailing gutters so the row stays visually balanced without introducing
+      // extra vertical padding. The trailing side may end up one column wider when
+      // the slack is odd, which matches how most text UIs centre short lines.
+      let occupiedWidth = minimumButtonWidth + spacing * gapCount
+      let slack         = max(0, interiorWidth - occupiedWidth)
+      let startCol      = bounds.col + 1 + slack / 2
+
+      var elements: [TUIElement] = []
+
+      if isFullRedraw {
+        // Paint a horizontal rule so the footer reads as a distinct control row without
+        // reinstating the nested frame. We reuse the dialog palette to keep the rule in
+        // lock-step with theme changes.
+        let ruleRow     = buttonRow - 1
+        let ruleStartCol = bounds.col + 1
+        let ruleBounds  = BoxBounds ( row: ruleRow, col: ruleStartCol, width: interiorWidth, height: 1 )
+        let ruleSequences: [AnsiSequence] = [
+          .hideCursor,
+          .moveCursor ( row: ruleRow, col: ruleStartCol ),
+          .backcolor  ( baseStyle.background ),
+          .forecolor  ( baseStyle.foreground ),
+          .box        ( .horiz(interiorWidth) ),
+        ]
+        elements.append ( TUIElement ( bounds: ruleBounds, sequences: ruleSequences ) )
+        // The dialog body just repainted, so refresh every button to keep their
+        // alignment anchored to the new bounds.
+        markAllButtonsDirty()
+      }
+
+      var currentCol = startCol
+
+      for (index, controller) in buttonControllers.enumerated() {
+
+        let buttonBounds = BoxBounds(
+          row   : buttonRow,
+          col   : currentCol,
+          width : controller.minimumWidth,
+          height: 1
+        )
+
+        if dirtyButtonIndices.contains(index), let buttonSequences = controller.render ( in: size, bounds: buttonBounds, isHighlighted: index == activeIndex ) {
+          elements.append ( TUIElement ( bounds: buttonBounds, sequences: buttonSequences ) )
+        }
+
+        currentCol += controller.minimumWidth + spacing
+      }
+
+      dirtyButtonIndices.removeAll()
+
+      return elements
+    }
+
+    func handle ( _ input: TerminalInput.Input ) -> Bool {
+
+      guard !buttonControllers.isEmpty else { return false }
+
+      // The footer owns left/right navigation so only the focused button sees the
+      // activation key. This keeps keyboard handling predictable for callers.
+      switch input {
+
+        case .cursor(let key):
+          let previousIndex = activeIndex
+
+          switch key {
+            case .left  : activeIndex = max(0, activeIndex - 1)
+            case .right : activeIndex = min(buttonControllers.count - 1, activeIndex + 1)
+            default     : break
+          }
+
+          if activeIndex != previousIndex {
+            markButtonsDirty([previousIndex, activeIndex])
+            onUpdate?( false )
+            return true
+          }
+
+          return activeIndex != previousIndex
+
+        case .key(let key):
+          if key == .ESC {
+            // Mirror the selection list overlay so ESC consistently dismisses modal chrome.
+            onDismiss()
+            return true
+          }
+          return buttonControllers[activeIndex].handle(input)
+
+        default:
+          return buttonControllers[activeIndex].handle(input)
+      }
+    }
+
+    private func markButtonsDirty ( _ indexes: [Int] ) {
+      for index in indexes where buttonControllers.indices.contains(index) {
+        dirtyButtonIndices.insert(index)
+      }
+    }
+
+    private func markAllButtonsDirty() {
+      dirtyButtonIndices = Set(buttonControllers.indices)
+    }
+  }
+
+  private let messageBox  : MessageBox
+  private let layoutCache : LayoutCache
+  private let footer      : Footer?
 
   // Reserve a blank row for the horizontal rule and another for the button row so
   // the divider never overlaps the message body.
-  private static let trailingBlankLines       = 2
+  private static let trailingBlankLines = 2
 
   // Expose the highlight index for regression tests without widening the public surface.
-  var debugActiveButtonIndex: Int { activeIndex }
+  var debugActiveButtonIndex: Int { footer?.debugActiveIndex ?? 0 }
 
   var overlayBounds: BoxBounds? {
-    cachedLayout?.bounds
+    layoutCache.bounds
   }
 
   init(
@@ -396,7 +634,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
       }
     }
 
-    let minimumInteriorWidth = MessageBoxOverlay.minimumInteriorWidth(for: buttons)
+    let minimumInteriorWidth = Footer.minimumInteriorWidth ( for: buttons )
 
     // Expand the underlying message box so that the button row is always wide
     // enough for the supplied button labels. Without this, wide button sets get
@@ -408,222 +646,68 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
       style  : style,
       minimumInteriorWidth: minimumInteriorWidth
     )
-    self.context     = context
-    self.onDismiss   = onDismiss
-    self.activeIndex = 0
-    self.onUpdate    = onUpdate
-    self.cachedLayout = nil
-    self.needsFullRedraw = true
-    self.didRenderLastPass = false
+    self.layoutCache = LayoutCache()
 
-    // Convert the base element style into a highlight palette so buttons stay
-    // visually consistent with the rest of the overlay.
-    let highlightPalette = ElementStyle.highlightPalette ( for: style )
-
-    self.buttonControllers = buttons.map { config in
-      ButtonController(
-        configuration   : config,
-        style           : style,
-        highlightPalette: highlightPalette,
-        context         : context,
-        onDismiss       : onDismiss
+    if buttons.isEmpty {
+      self.footer = nil
+    } else {
+      // Convert the base element style into a highlight palette so buttons stay
+      // visually consistent with the rest of the overlay.
+      let highlightPalette = ElementStyle.highlightPalette ( for: style )
+      self.footer = Footer(
+        buttons          : buttons,
+        style            : style,
+        highlightPalette : highlightPalette,
+        context          : context,
+        onDismiss        : onDismiss,
+        onUpdate         : onUpdate
       )
     }
-
-    self.dirtyButtonIndices = Set(self.buttonControllers.indices)
   }
 
   func invalidateForFullRedraw() {
-    cachedLayout     = nil
-    needsFullRedraw  = true
-    didRenderLastPass = false
-    markAllButtonsDirty()
+    layoutCache.invalidate()
+    footer?.invalidate()
   }
 
   func render ( in size: winsize ) -> [AnsiSequence]? {
 
-    guard let layout = messageBox.layout(in: size) else {
-      cachedLayout      = nil
-      didRenderLastPass = false
-      needsFullRedraw   = true
-      markAllButtonsDirty()
+    guard let layout = layoutCache.refresh ( for: messageBox, in: size ) else {
+      footer?.invalidate()
       return nil
     }
 
-    if !didRenderLastPass {
-      needsFullRedraw = true
-    }
-
-    // Cache the most recent layout so we can spot geometry changes without
-    // forcing a full redraw on every highlight update. The renderer throttles
-    // its output with `usleep`, so avoiding redundant work keeps navigation
-    // responsive.
-    if !MessageBoxOverlay.layout(layout, matches: cachedLayout) {
-      cachedLayout    = layout
-      needsFullRedraw = true
-    }
-
-    // Collect each segment as a TUIElement so the renderer only deals with validated bounds.
     var elements: [TUIElement] = []
 
-    let isFullRedraw = needsFullRedraw
+    let isFullRedraw = layoutCache.consumeNeedsFullRedraw()
 
-    if needsFullRedraw {
+    if isFullRedraw {
       guard let boxSequences = messageBox.render(in: size) else {
-        cachedLayout      = nil
-        didRenderLastPass = false
-        needsFullRedraw   = true
-        markAllButtonsDirty()
+        layoutCache.markRenderFailed()
+        footer?.invalidate()
         return nil
       }
       elements.append ( TUIElement ( bounds: layout.bounds, sequences: boxSequences ) )
-      needsFullRedraw = false
     }
 
-    guard !buttonControllers.isEmpty else {
-      didRenderLastPass = true
-      return TUIElement.render ( elements, in: size )
+    if let footer = footer {
+      let footerElements = footer.render ( in: size, layout: layout, isFullRedraw: isFullRedraw )
+      elements.append(contentsOf: footerElements)
     }
 
-    let bounds               = layout.bounds
-    let interiorWidth        = bounds.width - 2
-    let minimumButtonWidths  = buttonControllers.reduce(0) { $0 + $1.minimumWidth }
-    let gapCount             = max(buttonControllers.count - 1, 0)
-
-    guard minimumButtonWidths <= interiorWidth else {
-      // Logging the refusal makes it obvious why callers lose their buttons; the guard only fires when
-      // the dialog itself is narrower than the button row so nothing could render safely.
-      log("MessageBoxOverlay: skipping buttons, minimum width \(minimumButtonWidths) exceeds interior width \(interiorWidth)")
-      didRenderLastPass = true
-      return TUIElement.render ( elements, in: size )
+    guard let sequences = TUIElement.render ( elements, in: size ) else {
+      layoutCache.markRenderFailed()
+      footer?.invalidate()
+      return nil
     }
 
-    let availableGap = max(0, interiorWidth - minimumButtonWidths)
-    // Prefer to preserve the existing two-column gutter, but collapse it evenly
-    // across the row when space runs tight so every button can still render.
-    let spacing      = gapCount > 0 ? min(2, availableGap / gapCount) : 0
-    let buttonRow    = bounds.row + bounds.height - 2
+    layoutCache.markDidRender()
 
-    // Centre the button row while keeping the controls on the same baseline as the
-    // rule above. Any slack that remains after spacing is split across the leading
-    // and trailing gutters so the row stays visually balanced without introducing
-    // extra vertical padding. The trailing side may end up one column wider when
-    // the slack is odd, which matches how most text UIs centre short lines.
-    let occupiedWidth = minimumButtonWidths + spacing * gapCount
-    let slack         = max(0, interiorWidth - occupiedWidth)
-    let startCol      = bounds.col + 1 + slack / 2
-
-    if isFullRedraw {
-      // Paint a horizontal rule so the footer reads as a distinct control row without
-      // reinstating the nested frame. We reuse the dialog palette to keep the rule in
-      // lock-step with theme changes.
-      let ruleRow   = buttonRow - 1
-      let ruleStyle = messageBox.element.style
-
-      let ruleStartCol = bounds.col + 1
-
-      // Align the divider with the message box interior so the footer sits flush with
-      // the frame; keeping the buttons centred preserves their existing placement while
-      // avoiding a ragged left edge.
-      let ruleBounds = BoxBounds ( row: ruleRow, col: ruleStartCol, width: interiorWidth, height: 1 )
-      let ruleSequences: [AnsiSequence] = [
-        .hideCursor,
-        .moveCursor ( row: ruleRow, col: ruleStartCol ),
-        .backcolor  ( ruleStyle.background ),
-        .forecolor  ( ruleStyle.foreground ),
-        .box        ( .horiz(interiorWidth) ),
-      ]
-      elements.append ( TUIElement ( bounds: ruleBounds, sequences: ruleSequences ) )
-    }
-
-    if isFullRedraw {
-      // The dialog body just repainted, so refresh every button to keep their
-      // alignment anchored to the new bounds.
-      markAllButtonsDirty()
-    }
-
-    var currentCol = startCol
-
-    //MARK: debug change
-    // dropped first button to see if one of the dim buttons would render in place,
-    // which they did, so their attribs appear to be sane
-    // this is going to be width or position computation, which sucks, because codex wrote them
-    // and its code is all fugly
-    for (index, controller) in buttonControllers.enumerated() {
-
-      let buttonBounds = BoxBounds(
-        row   : buttonRow,
-        col   : currentCol,
-        width : controller.minimumWidth,
-        height: 1
-      )
-
-      if dirtyButtonIndices.contains(index), let buttonSequences = controller.render ( in: size, bounds: buttonBounds, isHighlighted: index == activeIndex ) {
-        elements.append ( TUIElement ( bounds: buttonBounds, sequences: buttonSequences ) )
-      }
-
-      currentCol += controller.minimumWidth + spacing
-      //log("current col \(currentCol)") // it won't be this
-    }
-
-    dirtyButtonIndices.removeAll()
-
-    didRenderLastPass = true
-
-    return TUIElement.render ( elements, in: size )
+    return sequences
   }
 
   func handle(_ input: TerminalInput.Input) -> Bool {
-
-    guard !buttonControllers.isEmpty else { return false }
-
-    // The overlay owns left/right navigation so only the focused button sees the
-    // activation key. This keeps keyboard handling predictable for callers.
-    switch input {
-
-      case .cursor(let key):
-        let previousIndex = activeIndex
-
-        switch key {
-          case .left  : activeIndex = max(0, activeIndex - 1)
-          case .right : activeIndex = min(buttonControllers.count - 1, activeIndex + 1)
-          default     : break
-        }
-
-        if activeIndex != previousIndex {
-          markButtonsDirty([previousIndex, activeIndex])
-          onUpdate?( false )
-          return true
-        }
-
-        return activeIndex != previousIndex
-
-      case .key(let key):
-        if key == .ESC {
-          // Mirror the selection list overlay so ESC consistently dismisses modal chrome.
-          onDismiss()
-          return true
-        }
-        return buttonControllers[activeIndex].handle(input)
-
-      default:
-        return buttonControllers[activeIndex].handle(input)
-    }
-  }
-
-  private static func minimumInteriorWidth(for buttons: [MessageBoxButton]) -> Int {
-
-    guard !buttons.isEmpty else { return 0 }
-
-    let labelWidth = buttons.reduce(0) { width, config in
-      width + MessageBoxOverlay.buttonWidth(for: config.text)
-    }
-
-    // The message body can wrap but the controls cannot vanish, so favour the
-    // button row when reserving space for the overlay. With buttons now drawn
-    // directly within the dialog interior we only need to reserve the raw
-    // button widths.
-    return labelWidth
+    footer?.handle(input) ?? false
   }
 
   private static func buttonWidth(for text: String) -> Int {
@@ -632,19 +716,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     return text.count + 4
   }
 
-  private func markButtonsDirty(_ indexes: [Int]) {
-    for index in indexes where buttonControllers.indices.contains(index) {
-      dirtyButtonIndices.insert(index)
-    }
-  }
-
-  private func markAllButtonsDirty() {
-    dirtyButtonIndices = Set(buttonControllers.indices)
-  }
-
-  private static func layout(_ layout: MessageBox.Layout, matches cached: MessageBox.Layout?) -> Bool {
-    guard let cached = cached else { return false }
-
+  private static func layout(_ layout: MessageBox.Layout, matches cached: MessageBox.Layout) -> Bool {
     let boundsMatch = cached.bounds.row    == layout.bounds.row
                    && cached.bounds.col    == layout.bounds.col
                    && cached.bounds.width  == layout.bounds.width
