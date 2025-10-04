@@ -562,22 +562,30 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
         }
       ]
 
-      var globalHandlers: KeyHandler.ControlInputHandler = [:]
+      var globalControlMap: KeyHandler.ControlInputHandler = [:]
 
       for controller in buttonControllers {
         let key = controller.activationKey
         let keyInput = TerminalInput.Input.key ( key )
 
-        globalHandlers[keyInput] = { [weak self] in
+        globalControlMap[keyInput] = { [weak self] in
           self?.activateSelectedButton ( for: key ) ?? false
         }
+      }
+
+      let globalHandler: KeyHandler.GlobalControlHandler = { input in
+        // The dispatcher now forwards raw inputs to the global handler so we
+        // keep the lightweight per-key registration by looking up the action
+        // before executing it.
+        guard let action = globalControlMap[input] else { return false }
+        return action()
       }
 
       // Installing everything as a single entry keeps overlay stack management
       // straightforward; the footer simply pushes once when it becomes active.
       keyHandler.pushHandler ( KeyHandler.HandlerTableEntry (
         control                     : controlHandlers,
-        global                      : globalHandlers,
+        global                      : globalHandler,
         swallowPrintableAfterEscape : true
       ) )
     }
