@@ -73,7 +73,8 @@ public final class Button: Renderable, OverlayInputHandling {
     "[ \(text) ]"
   }
 
-  let hex = HexDump()
+ 
+  
   public func render ( in size: winsize ) -> [AnsiSequence]? {
 
     guard bounds.height >= 1 else { return nil }
