@@ -15,7 +15,10 @@ final class KeyHandler {
   typealias ControlInputHandler   = [TerminalInput.Input: () -> Bool]
   typealias BytesInputHandler     = ( Bytes ) -> Bool
   typealias ResponseInputHandler  = ( TerminalInput.Response ) -> Bool
-
+  
+  //TODO: change the global handler to use this type
+  typealias GlobalControlHandler  = ( TerminalInput.Input ) -> Bool
+  
   // Each table entry is immutable so callers make one decision about what the
   // overlay wants to trap.  This mirrors the provided example and keeps the
   // stack easy to reason about when overlays push/pop focus.
@@ -30,7 +33,10 @@ final class KeyHandler {
       control                     : ControlInputHandler?       = nil,
       bytes                       : BytesInputHandler?         = nil,
       responses                   : ResponseInputHandler?      = nil,
+      
+      //TODO: use GlobalControlHandler
       global                      : ControlInputHandler?       = nil,
+      
       swallowPrintableAfterEscape : Bool                       = false
     ) {
       self.control                     = control
@@ -84,6 +90,8 @@ final class KeyHandler {
     switch input {
       case .key, .cursor :
         if let action = handler.control?[input] { return action() }
+        
+        //TODO: if let action = handler.global { return action ( input ) }
         if let action = handler.global?[input]  { return action() }
 
       case .ascii   ( let data ) :
