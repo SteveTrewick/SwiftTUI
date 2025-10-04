@@ -178,11 +178,12 @@ public final class OverlayManager {
       // flows predictable and ensures stray keystrokes cannot reach background UI.
       sawInteractiveOverlay = true
 
-      let input = bufferedInputs[processedCount]
+      let input      = bufferedInputs[processedCount]
+      let keyHandler = focusedOverlay.keyHandler
 
-      if case .key(let key) = input, key == .ESC {
-        let nextIndex      = processedCount + 1
-        let hasLookahead   = nextIndex < limit
+      if case .key(let key) = input, key == .ESC, keyHandler.shouldSwallowPrintableAfterEscape {
+        let nextIndex    = processedCount + 1
+        let hasLookahead = nextIndex < limit
 
         if hasLookahead {
           let lookaheadInput = bufferedInputs[nextIndex]
@@ -190,11 +191,9 @@ public final class OverlayManager {
           switch lookaheadInput {
             case .ascii, .unicode:
               // Option-key menu accelerators surface as ESC followed by a
-              // printable character. When a modal overlay is active those
-              // chords should be swallowed so the overlay stays visible and
-              // the background menu cannot react to the shortcut. By skipping
-              // both inputs here we keep ESC available for explicit overlay
-              // dismissal without letting chords leak through.
+              // printable character. When the overlay claims ESC we swallow the
+              // printable payload so option-key chords stay local to the menu
+              // bar instead of leaking to the application.
               processedCount += 2
               handledAny      = true
               continue
@@ -204,7 +203,7 @@ public final class OverlayManager {
         }
       }
 
-      if focusedOverlay.handle(input) {
+      if keyHandler.handle ( input ) {
         handledAny = true
       }
 
@@ -270,6 +269,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     private let context         : AppContext
     private let onDismiss       : () -> Void
     private let button          : Button
+    private let keyHandler      : KeyHandler
     private var isArmed         : Bool
 
     init(
@@ -291,6 +291,9 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
         style : style
       )
       self.isArmed          = true
+      self.keyHandler       = KeyHandler()
+
+      configureKeyHandler()
     }
 
     var minimumWidth: Int { button.minimumWidth }
@@ -306,34 +309,35 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     }
 
     func handle ( _ input: TerminalInput.Input ) -> Bool {
+      keyHandler.handle ( input )
+    }
 
-      guard isArmed else { return false }
+    private func configureKeyHandler() {
 
-      switch input {
+      keyHandler.registerControl ( configuration.activationKey ) { [weak self] in
+        self?.activate() ?? false
+      }
 
-        case .key(let key) where key == configuration.activationKey:
-          activate()
-          return true
-
-        case .ascii(let data) where configuration.activationKey == .RETURN:
-          if data.contains(0x0d) {
-            activate()
-            return true
+      if configuration.activationKey == .RETURN {
+        keyHandler.registerASCII { [weak self] data in
+          guard let controller = self else { return false }
+          guard controller.isArmed else { return false }
+          if data.contains ( 0x0d ) {
+            return controller.activate()
           }
           return false
-
-        default:
-          return false
+        }
       }
     }
 
-    private func activate() {
+    private func activate() -> Bool {
 
-      guard isArmed else { return }
+      guard isArmed else { return false }
       isArmed = false
 
       configuration.handler?(context)
       onDismiss()
+      return true
     }
   }
 
@@ -410,6 +414,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     private let onDismiss          : () -> Void
     private let onUpdate           : ((Bool) -> Void)?
     private let minimumButtonWidth : Int
+    let keyHandler                 : KeyHandler
 
     init(
       buttons          : [MessageBoxButton],
@@ -435,6 +440,9 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
       self.onDismiss          = onDismiss
       self.onUpdate           = onUpdate
       self.minimumButtonWidth = self.buttonControllers.reduce(0) { $0 + $1.minimumWidth }
+      self.keyHandler         = KeyHandler()
+
+      configureKeyHandler()
     }
 
     static func minimumInteriorWidth ( for buttons: [MessageBoxButton] ) -> Int {
@@ -534,41 +542,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     }
 
     func handle ( _ input: TerminalInput.Input ) -> Bool {
-
-      guard !buttonControllers.isEmpty else { return false }
-
-      // The footer owns left/right navigation so only the focused button sees the
-      // activation key. This keeps keyboard handling predictable for callers.
-      switch input {
-
-        case .cursor(let key):
-          let previousIndex = activeIndex
-
-          switch key {
-            case .left  : activeIndex = max(0, activeIndex - 1)
-            case .right : activeIndex = min(buttonControllers.count - 1, activeIndex + 1)
-            default     : break
-          }
-
-          if activeIndex != previousIndex {
-            markButtonsDirty([previousIndex, activeIndex])
-            onUpdate?( false )
-            return true
-          }
-
-          return activeIndex != previousIndex
-
-        case .key(let key):
-          if key == .ESC {
-            // Mirror the selection list overlay so ESC consistently dismisses modal chrome.
-            onDismiss()
-            return true
-          }
-          return buttonControllers[activeIndex].handle(input)
-
-        default:
-          return buttonControllers[activeIndex].handle(input)
-      }
+      keyHandler.handle ( input )
     }
 
     private func markButtonsDirty ( _ indexes: [Int] ) {
@@ -580,11 +554,51 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     private func markAllButtonsDirty() {
       dirtyButtonIndices = Set(buttonControllers.indices)
     }
+
+    private func configureKeyHandler() {
+
+      keyHandler.registerCursor ( .left ) { [weak self] in
+        self?.moveActiveIndex ( by: -1 ) ?? false
+      }
+
+      keyHandler.registerCursor ( .right ) { [weak self] in
+        self?.moveActiveIndex ( by: 1 ) ?? false
+      }
+
+      keyHandler.registerControl ( .ESC, swallowPrintableAfterESC: true ) { [weak self] in
+        self?.onDismiss()
+        return true
+      }
+
+      keyHandler.registerFallback { [weak self] input in
+        guard let footer = self else { return false }
+        guard footer.buttonControllers.indices.contains ( footer.activeIndex ) else { return false }
+        return footer.buttonControllers[footer.activeIndex].handle ( input )
+      }
+    }
+
+    private func moveActiveIndex ( by offset: Int ) -> Bool {
+
+      guard !buttonControllers.isEmpty else { return false }
+
+      let previousIndex = activeIndex
+      let candidate     = activeIndex + offset
+      let clampedIndex  = min(max(candidate, 0), buttonControllers.count - 1)
+
+      guard clampedIndex != previousIndex else { return false }
+
+      activeIndex = clampedIndex
+      markButtonsDirty ( [previousIndex, activeIndex] )
+      onUpdate?( false )
+
+      return true
+    }
   }
 
   private let messageBox  : MessageBox
   private let layoutCache : LayoutCache
   private let footer      : Footer?
+  let keyHandler          : KeyHandler
 
   // Reserve a blank row for the horizontal rule and another for the button row so
   // the divider never overlaps the message body.
@@ -649,12 +663,13 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     self.layoutCache = LayoutCache()
 
     if buttons.isEmpty {
-      self.footer = nil
+      self.footer     = nil
+      self.keyHandler = KeyHandler()
     } else {
       // Convert the base element style into a highlight palette so buttons stay
       // visually consistent with the rest of the overlay.
       let highlightPalette = ElementStyle.highlightPalette ( for: style )
-      self.footer = Footer(
+      let footer = Footer(
         buttons          : buttons,
         style            : style,
         highlightPalette : highlightPalette,
@@ -662,6 +677,8 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
         onDismiss        : onDismiss,
         onUpdate         : onUpdate
       )
+      self.footer     = footer
+      self.keyHandler = footer.keyHandler
     }
   }
 
@@ -706,8 +723,8 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     return sequences
   }
 
-  func handle(_ input: TerminalInput.Input) -> Bool {
-    footer?.handle(input) ?? false
+  func handle ( _ input: TerminalInput.Input ) -> Bool {
+    keyHandler.handle ( input )
   }
 
   private static func buttonWidth(for text: String) -> Int {
@@ -758,6 +775,7 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
   private var dirtyItemIndices  : Set<Int>
   private var didRenderLastPass : Bool
   private var isDismissed       : Bool
+  let keyHandler                : KeyHandler
 
   var debugActiveIndex : Int { activeIndex }
 
@@ -794,6 +812,9 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
     // Reuse the same palette rules as the message box buttons so every overlay
     // stays visually coherent even when callers customise the base style.
     self.highlightPalette   = ElementStyle.highlightPalette ( for: style )
+    self.keyHandler         = KeyHandler()
+
+    configureKeyHandler()
   }
 
   func invalidateForFullRedraw () {
@@ -884,46 +905,7 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
   }
 
   func handle ( _ input: TerminalInput.Input ) -> Bool {
-
-    guard !items.isEmpty else { return false }
-
-    switch input {
-
-      case .cursor(let key) :
-        let previousIndex = activeIndex
-
-        switch key {
-          case .up   :
-            activeIndex = max(0, activeIndex - 1)
-          case .down :
-            activeIndex = min(items.count - 1, activeIndex + 1)
-          default    :
-            return false
-        }
-
-        guard activeIndex != previousIndex else { return false }
-
-        markItemsDirty ( [previousIndex, activeIndex] )
-        onUpdate?( false )
-        return true
-
-      
-      case .key(let key) :
-        switch key {
-          case .RETURN : activateSelection(); return true
-          case .ESC    : dismiss()          ; return true
-          default      :                      return false
-        }
-
-      case .ascii(let data) :
-        if data.contains ( 0x0d ) {
-          activateSelection()
-          return true
-        }
-        return false
-
-      default     :return false
-    }
+    keyHandler.handle ( input )
   }
 
   private func layout ( in size: winsize ) -> BoxBounds? {
@@ -973,21 +955,66 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
     return BoxBounds ( row: top, col: left, width: width, height: height )
   }
 
-  private func activateSelection () {
-    guard items.indices.contains ( activeIndex ) else { return }
+  private func configureKeyHandler() {
+
+    keyHandler.registerCursor ( .up ) { [weak self] in
+      self?.moveSelection ( by: -1 ) ?? false
+    }
+
+    keyHandler.registerCursor ( .down ) { [weak self] in
+      self?.moveSelection ( by: 1 ) ?? false
+    }
+
+    keyHandler.registerControl ( .RETURN ) { [weak self] in
+      self?.activateSelection() ?? false
+    }
+
+    keyHandler.registerControl ( .ESC, swallowPrintableAfterESC: true ) { [weak self] in
+      self?.dismiss()
+      return true
+    }
+
+    keyHandler.registerASCII { [weak self] data in
+      guard data.contains ( 0x0d ) else { return false }
+      return self?.activateSelection() ?? false
+    }
+  }
+
+  private func moveSelection ( by offset: Int ) -> Bool {
+
+    guard !items.isEmpty else { return false }
+
+    let previousIndex = activeIndex
+    let candidate     = activeIndex + offset
+    let clampedIndex  = min(max(candidate, 0), items.count - 1)
+
+    guard clampedIndex != previousIndex else { return false }
+
+    activeIndex = clampedIndex
+    markItemsDirty ( [previousIndex, activeIndex] )
+    onUpdate?( false )
+
+    return true
+  }
+
+  private func activateSelection () -> Bool {
+    guard items.indices.contains ( activeIndex ) else { return false }
+    guard !isDismissed else { return false }
 
     let item = items[activeIndex]
     onSelect? ( item )
     // Pass through the broader application context so selection handlers can
     // trigger follow-up overlays or logging without reaching back into global state.
     item.handler? ( context )
-    dismiss()
+    return dismiss()
   }
 
-  private func dismiss () {
-    guard !isDismissed else { return }
+  @discardableResult
+  private func dismiss () -> Bool {
+    guard !isDismissed else { return false }
     isDismissed = true
     onDismiss()
+    return true
   }
 
   private func markItemsDirty ( _ indexes: [Int] ) {
