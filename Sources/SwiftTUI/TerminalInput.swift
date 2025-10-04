@@ -29,7 +29,7 @@ public struct TerminalInput {
   // some of them we pass to remoter terminal equipment, either way, they are all
   // special and require us to make decisions, so they each have an enum. sigh.
   
-  public enum ControlKey {
+  public enum ControlKey : Hashable {
     case NULL
     case STX
     case SOT
@@ -66,7 +66,7 @@ public struct TerminalInput {
   }
   
   
-  public enum CursorKey {
+  public enum CursorKey : Hashable {
     case left, right, up, down
   }
   
@@ -75,14 +75,14 @@ public struct TerminalInput {
   // in response to something we asked it. This is likely to expand as we build
   // more features
   
-  public enum Response {
+  public enum Response : Hashable {
     case CUROSR (row: Int, column: Int)  // for now just cursor position
   }
   
   
   // our eventual output will be an array of these
   
-  public enum Input {
+  public enum Input : Hashable {
     case key     (TerminalInput.ControlKey)  // spesh key
     case cursor  (TerminalInput.CursorKey)   // cursor key
     case response(TerminalInput.Response)    // query response
