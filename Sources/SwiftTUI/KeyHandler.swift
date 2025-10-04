@@ -1,10 +1,9 @@
 import Foundation
 
-// Centralise keyboard dispatch so overlays can share a small amount of stateful
-// behaviour such as ESC swallowing without duplicating switch statements.  The
-// handler keeps the registration API deliberately tiny so modal overlays can
-// install the closures they need in a single step that mirrors the template the
-// user supplied.
+// Centralise keyboard dispatch so overlays can reuse the same registration
+// template without duplicating switch statements.  The handler keeps the API
+// deliberately tiny so modal overlays can install every closure they need in a
+// single step that mirrors the example supplied by the user.
 final class KeyHandler {
 
   enum Bytes {
@@ -25,21 +24,17 @@ final class KeyHandler {
     let bytes                       : BytesInputHandler?
     let responses                   : ResponseInputHandler?
     let global                      : GlobalControlHandler?
-    let swallowPrintableAfterEscape : Bool
 
     init(
       control                     : ControlInputHandler?       = nil,
       bytes                       : BytesInputHandler?         = nil,
       responses                   : ResponseInputHandler?      = nil,
-      global                      : GlobalControlHandler?      = nil,
-      
-      swallowPrintableAfterEscape : Bool                       = false
+      global                      : GlobalControlHandler?      = nil
     ) {
       self.control                     = control
       self.bytes                       = bytes
       self.responses                   = responses
       self.global                      = global
-      self.swallowPrintableAfterEscape = swallowPrintableAfterEscape
     }
 
     func traps ( _ key: TerminalInput.ControlKey ) -> Bool {
@@ -47,10 +42,6 @@ final class KeyHandler {
       return control[.key(key)] != nil
     }
 
-    var handlesEscape : Bool {
-      guard let control = control else { return false }
-      return control[.key(.ESC)] != nil
-    }
   }
 
   private var handlers : [HandlerTableEntry]
@@ -71,11 +62,6 @@ final class KeyHandler {
   func trapsControl ( _ key: TerminalInput.ControlKey ) -> Bool {
     guard let entry = handlers.last else { return false }
     return entry.traps ( key )
-  }
-
-  var shouldSwallowPrintableAfterEscape: Bool {
-    guard let entry = handlers.last else { return false }
-    return entry.handlesEscape && entry.swallowPrintableAfterEscape
   }
 
   @discardableResult

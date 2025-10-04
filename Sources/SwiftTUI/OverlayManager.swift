@@ -181,7 +181,9 @@ public final class OverlayManager {
       let input      = bufferedInputs[processedCount]
       let keyHandler = focusedOverlay.keyHandler
 
-      if case .key(let key) = input, key == .ESC, keyHandler.shouldSwallowPrintableAfterEscape {
+      if case .key ( let key ) = input, key == .ESC, keyHandler.trapsControl ( .ESC ) {
+        if keyHandler.handle ( input ) { handledAny = true }
+
         let nextIndex    = processedCount + 1
         let hasLookahead = nextIndex < limit
 
@@ -189,18 +191,20 @@ public final class OverlayManager {
           let lookaheadInput = bufferedInputs[nextIndex]
 
           switch lookaheadInput {
-            case .ascii, .unicode:
-              // Option-key menu accelerators surface as ESC followed by a
-              // printable character. When the overlay claims ESC we swallow the
-              // printable payload so option-key chords stay local to the menu
-              // bar instead of leaking to the application.
+            case .ascii, .unicode :
+              // Option-key chords surface as ESC followed by a printable byte.  When
+              // the overlay claims ESC we bin the trailing payload so the chord does
+              // not leak to the underlying application.
               processedCount += 2
               handledAny      = true
               continue
-            default:
+            default :
               break
           }
         }
+
+        processedCount += 1
+        continue
       }
 
       if keyHandler.handle ( input ) {
@@ -584,9 +588,8 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
       // Installing everything as a single entry keeps overlay stack management
       // straightforward; the footer simply pushes once when it becomes active.
       keyHandler.pushHandler ( KeyHandler.HandlerTableEntry (
-        control                     : controlHandlers,
-        global                      : globalHandler,
-        swallowPrintableAfterEscape : true
+        control : controlHandlers,
+        global  : globalHandler
       ) )
     }
 
@@ -1041,9 +1044,8 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
     }
 
     keyHandler.pushHandler ( KeyHandler.HandlerTableEntry (
-      control                     : controlHandlers,
-      bytes                       : bytesHandler,
-      swallowPrintableAfterEscape : true
+      control : controlHandlers,
+      bytes   : bytesHandler
     ) )
   }
 
