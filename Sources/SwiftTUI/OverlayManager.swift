@@ -225,6 +225,11 @@ public final class OverlayManager {
   }
 
   public func clear() {
+    // Pull stacked handlers before tearing down overlays so any follow-up UI can
+    // push its own entry without waiting for deinitialisation.
+    for overlay in interactiveOverlays {
+      overlay.keyHandler.popHandler()
+    }
     pendingClearBounds = overlays.compactMap { overlay in
       guard let reporting = overlay as? OverlayBoundsReporting else { return nil }
       return reporting.overlayBounds
@@ -263,21 +268,20 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
   // keeps it focused on painting a labelled control.
   final class ButtonController {
 
-    private let configuration   : MessageBoxButton
-    private let style           : ElementStyle
-    private let highlightPalette: (foreground: ANSIForecolor, background: ANSIBackcolor)
-    private let context         : AppContext
-    private let onDismiss       : () -> Void
-    private let button          : Button
-    private let keyHandler      : KeyHandler
-    private var isArmed         : Bool
+    private let configuration    : MessageBoxButton
+    private let style            : ElementStyle
+    private let highlightPalette : (foreground: ANSIForecolor, background: ANSIBackcolor)
+    private let context          : AppContext
+    private let onDismiss        : () -> Void
+    private let button           : Button
+    private var isArmed          : Bool
 
     init(
-      configuration   : MessageBoxButton,
-      style           : ElementStyle,
-      highlightPalette: (foreground: ANSIForecolor, background: ANSIBackcolor),
-      context         : AppContext,
-      onDismiss       : @escaping () -> Void
+      configuration    : MessageBoxButton,
+      style            : ElementStyle,
+      highlightPalette : (foreground: ANSIForecolor, background: ANSIBackcolor),
+      context          : AppContext,
+      onDismiss        : @escaping () -> Void
     ) {
 
       self.configuration    = configuration
@@ -291,12 +295,10 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
         style : style
       )
       self.isArmed          = true
-      self.keyHandler       = KeyHandler()
-
-      configureKeyHandler()
     }
 
     var minimumWidth: Int { button.minimumWidth }
+    var activationKey: TerminalInput.ControlKey { configuration.activationKey }
 
     func render ( in size: winsize, bounds: BoxBounds, isHighlighted: Bool ) -> [AnsiSequence]? {
 
@@ -308,35 +310,16 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
       return button.render ( in: size, foreground: foreground, background: background )
     }
 
-    func handle ( _ input: TerminalInput.Input ) -> Bool {
-      keyHandler.handle ( input )
+    func dismiss() {
+      isArmed = false
     }
 
-    private func configureKeyHandler() {
-
-      keyHandler.registerControl ( configuration.activationKey ) { [weak self] in
-        self?.activate() ?? false
-      }
-
-      if configuration.activationKey == .RETURN {
-        keyHandler.registerASCII { [weak self] data in
-          guard let controller = self else { return false }
-          guard controller.isArmed else { return false }
-          if data.contains ( 0x0d ) {
-            return controller.activate()
-          }
-          return false
-        }
-      }
-    }
-
-    private func activate() -> Bool {
+    func activate() -> Bool {
 
       guard isArmed else { return false }
-      isArmed = false
-
-      configuration.handler?(context)
+      dismiss()
       onDismiss()
+      configuration.handler?(context)
       return true
     }
   }
@@ -411,10 +394,11 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     private var dirtyButtonIndices : Set<Int>
     private var activeIndex        : Int
     private let baseStyle          : ElementStyle
-    private let onDismiss          : () -> Void
+    private let dismissHandler     : () -> Void
     private let onUpdate           : ((Bool) -> Void)?
     private let minimumButtonWidth : Int
     let keyHandler                 : KeyHandler
+    private var didPopKeyHandler   : Bool
 
     init(
       buttons          : [MessageBoxButton],
@@ -425,22 +409,30 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
       onUpdate         : ((Bool) -> Void)?
     ) {
 
+      let computedMinimumWidth = buttons.reduce(0) { width, config in
+        width + MessageBoxOverlay.buttonWidth(for: config.text)
+      }
+
+      self.buttonControllers = []
+      self.dirtyButtonIndices = Set<Int>()
+      self.activeIndex        = 0
+      self.baseStyle          = style
+      self.dismissHandler     = onDismiss
+      self.onUpdate           = onUpdate
+      self.minimumButtonWidth = computedMinimumWidth
+      self.keyHandler         = KeyHandler()
+      self.didPopKeyHandler   = false
+
       self.buttonControllers = buttons.map { config in
         ButtonController(
-          configuration   : config,
-          style           : style,
-          highlightPalette: highlightPalette,
-          context         : context,
-          onDismiss       : onDismiss
+          configuration    : config,
+          style            : style,
+          highlightPalette : highlightPalette,
+          context          : context,
+          onDismiss        : { [weak self] in self?.dismiss() }
         )
       }
       self.dirtyButtonIndices = Set(self.buttonControllers.indices)
-      self.activeIndex        = 0
-      self.baseStyle          = style
-      self.onDismiss          = onDismiss
-      self.onUpdate           = onUpdate
-      self.minimumButtonWidth = self.buttonControllers.reduce(0) { $0 + $1.minimumWidth }
-      self.keyHandler         = KeyHandler()
 
       configureKeyHandler()
     }
@@ -557,23 +549,69 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
 
     private func configureKeyHandler() {
 
-      keyHandler.registerCursor ( .left ) { [weak self] in
-        self?.moveActiveIndex ( by: -1 ) ?? false
+      let controlHandlers: KeyHandler.ControlInputHandler = [
+        .cursor ( .left  ) : { [weak self] in
+          self?.moveActiveIndex ( by: -1 ) ?? false
+        },
+        .cursor ( .right ) : { [weak self] in
+          self?.moveActiveIndex ( by: 1 ) ?? false
+        },
+        .key    ( .ESC   ) : { [weak self] in
+          self?.dismiss()
+          return true
+        }
+      ]
+
+      var globalHandlers: KeyHandler.ControlInputHandler = [:]
+
+      for controller in buttonControllers {
+        let key = controller.activationKey
+        let keyInput = TerminalInput.Input.key ( key )
+
+        globalHandlers[keyInput] = { [weak self] in
+          self?.activateSelectedButton ( for: key ) ?? false
+        }
       }
 
-      keyHandler.registerCursor ( .right ) { [weak self] in
-        self?.moveActiveIndex ( by: 1 ) ?? false
+      // Installing everything as a single entry keeps overlay stack management
+      // straightforward; the footer simply pushes once when it becomes active.
+      keyHandler.pushHandler ( KeyHandler.HandlerTableEntry (
+        control                     : controlHandlers,
+        global                      : globalHandlers,
+        swallowPrintableAfterEscape : true
+      ) )
+    }
+
+    private func activateSelectedButton ( for key: TerminalInput.ControlKey ) -> Bool {
+
+      guard buttonControllers.indices.contains ( activeIndex ) else { return false }
+
+      let controller = buttonControllers[activeIndex]
+
+      guard controller.activationKey == key else { return false }
+
+      return controller.activate()
+    }
+
+    private func dismiss() {
+
+      guard !didPopKeyHandler else { return }
+
+      didPopKeyHandler = true
+
+      // Clear every nested controller first so button-specific handlers disappear
+      // before the overlay asks the manager to tear itself down.
+      for controller in buttonControllers {
+        controller.dismiss()
       }
 
-      keyHandler.registerControl ( .ESC, swallowPrintableAfterESC: true ) { [weak self] in
-        self?.onDismiss()
-        return true
-      }
+      keyHandler.popHandler()
+      dismissHandler()
+    }
 
-      keyHandler.registerFallback { [weak self] input in
-        guard let footer = self else { return false }
-        guard footer.buttonControllers.indices.contains ( footer.activeIndex ) else { return false }
-        return footer.buttonControllers[footer.activeIndex].handle ( input )
+    deinit {
+      if !didPopKeyHandler {
+        keyHandler.popHandler()
       }
     }
 
@@ -904,10 +942,6 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
     return TUIElement.render ( elements, in: size )
   }
 
-  func handle ( _ input: TerminalInput.Input ) -> Bool {
-    keyHandler.handle ( input )
-  }
-
   private func layout ( in size: winsize ) -> BoxBounds? {
 
     let rows    = Int(size.ws_row)
@@ -955,29 +989,54 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
     return BoxBounds ( row: top, col: left, width: width, height: height )
   }
 
+  func handle ( _ input: TerminalInput.Input ) -> Bool {
+
+    if isDismissed {
+      // Tests expect ESC to keep reading as handled even after dismissal so the
+      // overlay stack continues to swallow option-key chords that arrive in the
+      // same burst as the exit key.
+      if case .key ( let key ) = input, key == .ESC {
+        return true
+      }
+      return false
+    }
+
+    return keyHandler.handle ( input )
+  }
+
   private func configureKeyHandler() {
+    let controlHandlers: KeyHandler.ControlInputHandler = [
+      .cursor ( .up    ) : { [weak self] in
+        self?.moveSelection ( by: -1 ) ?? false
+      },
+      .cursor ( .down  ) : { [weak self] in
+        self?.moveSelection ( by: 1 ) ?? false
+      },
+      .key    ( .RETURN ) : { [weak self] in
+        self?.activateSelection() ?? false
+      },
+      .key    ( .ESC   ) : { [weak self] in
+        self?.dismiss()
+        return true
+      }
+    ]
 
-    keyHandler.registerCursor ( .up ) { [weak self] in
-      self?.moveSelection ( by: -1 ) ?? false
+    let bytesHandler: KeyHandler.BytesInputHandler = { [weak self] bytes in
+      guard let overlay = self else { return false }
+
+      switch bytes {
+        case .ascii   ( let data ),
+             .unicode ( let data ) :
+          guard data.contains ( 0x0d ) else { return false }
+          return overlay.activateSelection()
+      }
     }
 
-    keyHandler.registerCursor ( .down ) { [weak self] in
-      self?.moveSelection ( by: 1 ) ?? false
-    }
-
-    keyHandler.registerControl ( .RETURN ) { [weak self] in
-      self?.activateSelection() ?? false
-    }
-
-    keyHandler.registerControl ( .ESC, swallowPrintableAfterESC: true ) { [weak self] in
-      self?.dismiss()
-      return true
-    }
-
-    keyHandler.registerASCII { [weak self] data in
-      guard data.contains ( 0x0d ) else { return false }
-      return self?.activateSelection() ?? false
-    }
+    keyHandler.pushHandler ( KeyHandler.HandlerTableEntry (
+      control                     : controlHandlers,
+      bytes                       : bytesHandler,
+      swallowPrintableAfterEscape : true
+    ) )
   }
 
   private func moveSelection ( by offset: Int ) -> Bool {
@@ -1013,6 +1072,7 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
   private func dismiss () -> Bool {
     guard !isDismissed else { return false }
     isDismissed = true
+    keyHandler.popHandler()
     onDismiss()
     return true
   }

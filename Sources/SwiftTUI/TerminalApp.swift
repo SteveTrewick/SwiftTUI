@@ -156,24 +156,43 @@ public final class TerminalApp {
 
 
   private func configureKeyHandler() {
+    // Keep the table definition close to the registration so the dispatch logic
+    // mirrors the template provided by the user.  Everything the menu cares
+    // about is wrapped into a single entry so we can push/pop in one call.
 
-    keyHandler.registerControl ( .ESC ) { [weak self] in
-      self?.awaitingMenuSelection = true
-      return true
+    let controlHandlers: KeyHandler.ControlInputHandler = [
+      .key ( .ESC ) : { [weak self] in
+        self?.awaitingMenuSelection = true
+        return true
+      }
+    ]
+
+    let bytesHandler: KeyHandler.BytesInputHandler = { [weak self] bytes in
+      guard let app = self else { return false }
+
+      switch bytes {
+        case .ascii   ( let data ),
+             .unicode ( let data ) :
+          return app.handleMenuSelectionPayload ( data )
+      }
     }
 
-    keyHandler.registerASCII { [weak self] data in
-      self?.handleMenuSelectionPayload ( data ) ?? false
-    }
+    // Register a wildcard CUROSR handler. The key is matched by case so any
+    // cursor position response will call this closure and feed the decoded
+    // payload straight into the normal response processing path.
+    let responseHandlers: KeyHandler.ResponseInputHandler = [
+      .CUROSR ( row: 0, column: 0 ) : { [weak self] response in
+        guard let app = self else { return false }
+        app.process ( response )
+        return true
+      }
+    ]
 
-    keyHandler.registerUnicode { [weak self] data in
-      self?.handleMenuSelectionPayload ( data ) ?? false
-    }
-
-    keyHandler.registerResponse { [weak self] response in
-      self?.process ( response )
-      return true
-    }
+    keyHandler.pushHandler ( KeyHandler.HandlerTableEntry (
+      control   : controlHandlers,
+      bytes     : bytesHandler,
+      responses : responseHandlers
+    ) )
   }
 
   @discardableResult
