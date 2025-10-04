@@ -3,91 +3,124 @@ import Foundation
 // Centralise keyboard dispatch so overlays can share a small amount of stateful
 // behaviour such as ESC swallowing without duplicating switch statements.  The
 // handler keeps the registration API deliberately tiny so modal overlays can
-// wire the pieces they need and rely on the fallback for delegation.
+// install the closures they need in a single step that mirrors the template the
+// user supplied.
 final class KeyHandler {
 
-  typealias ControlHandler  = () -> Bool
-  typealias CursorHandler   = () -> Bool
-  typealias PayloadHandler  = (Data) -> Bool
-  typealias ResponseHandler = (TerminalInput.Response) -> Bool
-
-  private var controlHandlers  : [TerminalInput.ControlKey: ControlHandler]
-  private var cursorHandlers   : [TerminalInput.CursorKey: CursorHandler]
-  private var asciiHandlers    : [PayloadHandler]
-  private var unicodeHandlers  : [PayloadHandler]
-  private var responseHandlers : [ResponseHandler]
-  private var fallbackHandler  : ((TerminalInput.Input) -> Bool)?
-  private var swallowPrintableAfterESC: Bool
-
-  init ( swallowPrintableAfterESC: Bool = false ) {
-    self.controlHandlers          = [:]
-    self.cursorHandlers           = [:]
-    self.asciiHandlers            = []
-    self.unicodeHandlers          = []
-    self.responseHandlers         = []
-    self.fallbackHandler          = nil
-    self.swallowPrintableAfterESC = swallowPrintableAfterESC
+  enum Bytes {
+    case ascii   ( Data )
+    case unicode ( Data )
   }
 
-  func registerControl ( _ key: TerminalInput.ControlKey, swallowPrintableAfterESC: Bool = false, handler: @escaping ControlHandler ) {
-    controlHandlers[key] = handler
-    if key == .ESC && swallowPrintableAfterESC {
-      self.swallowPrintableAfterESC = true
+  typealias ControlInputHandler   = [TerminalInput.Input: () -> Bool]
+  typealias BytesInputHandler     = ( Bytes ) -> Bool
+  typealias ResponseInputHandler  = [TerminalInput.Response: (TerminalInput.Response) -> Bool]
+
+  // Each table entry is immutable so callers make one decision about what the
+  // overlay wants to trap.  This mirrors the provided example and keeps the
+  // stack easy to reason about when overlays push/pop focus.
+  struct HandlerTableEntry {
+    let control                     : ControlInputHandler?
+    let bytes                       : BytesInputHandler?
+    let responses                   : ResponseInputHandler?
+    let global                      : ControlInputHandler?
+    let swallowPrintableAfterEscape : Bool
+
+    init(
+      control                     : ControlInputHandler?       = nil,
+      bytes                       : BytesInputHandler?         = nil,
+      responses                   : ResponseInputHandler?      = nil,
+      global                      : ControlInputHandler?       = nil,
+      swallowPrintableAfterEscape : Bool                       = false
+    ) {
+      self.control                     = control
+      self.bytes                       = bytes
+      self.responses                   = responses
+      self.global                      = global
+      self.swallowPrintableAfterEscape = swallowPrintableAfterEscape
+    }
+
+    func traps ( _ key: TerminalInput.ControlKey ) -> Bool {
+      guard let control = control else { return false }
+      return control[.key(key)] != nil
+    }
+
+    var handlesEscape : Bool {
+      guard let control = control else { return false }
+      return control[.key(.ESC)] != nil
     }
   }
 
-  func registerCursor ( _ key: TerminalInput.CursorKey, handler: @escaping CursorHandler ) {
-    cursorHandlers[key] = handler
+  private var handlers : [HandlerTableEntry]
+
+  init() {
+    self.handlers = []
   }
 
-  func registerASCII ( _ handler: @escaping PayloadHandler ) {
-    asciiHandlers.append(handler)
+  func pushHandler ( _ handler: HandlerTableEntry ) {
+    handlers.append ( handler )
   }
 
-  func registerUnicode ( _ handler: @escaping PayloadHandler ) {
-    unicodeHandlers.append(handler)
-  }
-
-  func registerResponse ( _ handler: @escaping ResponseHandler ) {
-    responseHandlers.append(handler)
-  }
-
-  func registerFallback ( _ handler: @escaping (TerminalInput.Input) -> Bool ) {
-    fallbackHandler = handler
+  func popHandler() {
+    guard !handlers.isEmpty else { return }
+    handlers.removeLast()
   }
 
   func trapsControl ( _ key: TerminalInput.ControlKey ) -> Bool {
-    controlHandlers[key] != nil
+    guard let entry = handlers.last else { return false }
+    return entry.traps ( key )
   }
 
   var shouldSwallowPrintableAfterEscape: Bool {
-    trapsControl ( .ESC ) && swallowPrintableAfterESC
+    guard let entry = handlers.last else { return false }
+    return entry.handlesEscape && entry.swallowPrintableAfterEscape
   }
 
   @discardableResult
   func handle ( _ input: TerminalInput.Input ) -> Bool {
+
+    guard let handler = handlers.last else { return false }
+
     switch input {
+      case .key, .cursor :
+        if let action = handler.control?[input] { return action() }
+        if let action = handler.global?[input]  { return action() }
 
-      case .key ( let key ) :
-        if let handler = controlHandlers[key] {
-          return handler()
-        }
-
-      case .cursor ( let key ) :
-        if let handler = cursorHandlers[key] {
-          return handler()
-        }
-
-      case .ascii ( let data ) :
-        for handler in asciiHandlers where handler(data) { return true }
+      case .ascii   ( let data ) :
+        if let action = handler.bytes { return action ( .ascii ( data ) ) }
 
       case .unicode ( let data ) :
-        for handler in unicodeHandlers where handler(data) { return true }
+        if let action = handler.bytes { return action ( .unicode ( data ) ) }
 
       case .response ( let response ) :
-        for handler in responseHandlers where handler(response) { return true }
+        guard let responseHandlers = handler.responses else { break }
+
+        // Always forward the concrete response to the closure so wildcard
+        // entries can match on the case yet still dig into the payload when
+        // acting on the terminal reply.  Returning the closure value keeps the
+        // responsibility for parsing complex replies inside the handler.
+        if let action = responseHandlers[response] {
+          return action ( response )
+        }
+
+        if let wildcard = responseHandlers.first ( where: {
+          $0.key != response && matchesResponse ( $0.key, response )
+        } ) {
+          return wildcard.value ( response )
+        }
     }
 
-    return fallbackHandler?(input) ?? false
+    return false
+  }
+
+  private func matchesResponse (
+    _ pattern  : TerminalInput.Response,
+    _ response : TerminalInput.Response
+  ) -> Bool {
+
+    // Treat dictionary entries as wildcards on the response case so we can map
+    // over query payloads without precomputing every possible value.
+    if case .CUROSR = pattern, case .CUROSR = response { return true }
+    return false
   }
 }
