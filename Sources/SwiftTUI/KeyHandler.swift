@@ -14,7 +14,7 @@ final class KeyHandler {
 
   typealias ControlInputHandler   = [TerminalInput.Input: () -> Bool]
   typealias BytesInputHandler     = ( Bytes ) -> Bool
-  typealias ResponseInputHandler  = [TerminalInput.Response: (TerminalInput.Response) -> Bool]
+  typealias ResponseInputHandler  = ( TerminalInput.Response ) -> Bool
 
   // Each table entry is immutable so callers make one decision about what the
   // overlay wants to trap.  This mirrors the provided example and keeps the
@@ -93,34 +93,15 @@ final class KeyHandler {
         if let action = handler.bytes { return action ( .unicode ( data ) ) }
 
       case .response ( let response ) :
-        guard let responseHandlers = handler.responses else { break }
+        guard let action = handler.responses else { break }
 
-        // Always forward the concrete response to the closure so wildcard
-        // entries can match on the case yet still dig into the payload when
-        // acting on the terminal reply.  Returning the closure value keeps the
-        // responsibility for parsing complex replies inside the handler.
-        if let action = responseHandlers[response] {
-          return action ( response )
-        }
-
-        if let wildcard = responseHandlers.first ( where: {
-          $0.key != response && matchesResponse ( $0.key, response )
-        } ) {
-          return wildcard.value ( response )
-        }
+        // By delegating the matching logic to the consumer we avoid
+        // re-implementing wildcard dictionaries here.  The handler now owns the
+        // decision about which terminal responses to trap and how to interpret
+        // the payload, which keeps this dispatcher tiny and predictable.
+        return action ( response )
     }
 
-    return false
-  }
-
-  private func matchesResponse (
-    _ pattern  : TerminalInput.Response,
-    _ response : TerminalInput.Response
-  ) -> Bool {
-
-    // Treat dictionary entries as wildcards on the response case so we can map
-    // over query payloads without precomputing every possible value.
-    if case .CUROSR = pattern, case .CUROSR = response { return true }
     return false
   }
 }
