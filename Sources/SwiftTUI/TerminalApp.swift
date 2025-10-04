@@ -160,14 +160,14 @@ public final class TerminalApp {
     // mirrors the template provided by the user.  Everything the menu cares
     // about is wrapped into a single entry so we can push/pop in one call.
 
-    let controlHandlers: KeyHandler.ControlInputHandler = [
+    let controlHandlers : KeyHandler.ControlInputHandler = [
       .key ( .ESC ) : { [weak self] in
         self?.awaitingMenuSelection = true
         return true
       }
     ]
 
-    let bytesHandler: KeyHandler.BytesInputHandler = { [weak self] bytes in
+    let bytesHandler    : KeyHandler.BytesInputHandler = { [weak self] bytes in
       guard let app = self else { return false }
 
       switch bytes {
@@ -177,21 +177,23 @@ public final class TerminalApp {
       }
     }
 
-    // Register a wildcard CUROSR handler. The key is matched by case so any
-    // cursor position response will call this closure and feed the decoded
-    // payload straight into the normal response processing path.
-    let responseHandlers: KeyHandler.ResponseInputHandler = [
-      .CUROSR ( row: 0, column: 0 ) : { [weak self] response in
-        guard let app = self else { return false }
-        app.process ( response )
-        return true
-      }
-    ]
+    let responseHandler : KeyHandler.ResponseInputHandler = { [weak self] response in
+      guard let app = self else { return false }
+
+      guard case .CUROSR = response else { return false }
+
+      // The dispatcher no longer performs wildcard dictionary matching, so this
+      // closure inspects the payload and decides whether it wants to swallow the
+      // response.  Feeding the concrete response back through process keeps the
+      // cursor tracking logic unchanged.
+      app.process ( response )
+      return true
+    }
 
     keyHandler.pushHandler ( KeyHandler.HandlerTableEntry (
       control   : controlHandlers,
       bytes     : bytesHandler,
-      responses : responseHandlers
+      responses : responseHandler
     ) )
   }
 
