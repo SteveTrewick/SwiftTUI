@@ -3,7 +3,14 @@ import Foundation
 // the application loop collects.  The button implements this so the overlay
 // manager can wire it up to TerminalApp without tightly coupling the types.
 protocol OverlayInputHandling: AnyObject {
+  var keyHandler: KeyHandler { get }
   func handle(_ input: TerminalInput.Input) -> Bool
+}
+
+extension OverlayInputHandling {
+  func handle ( _ input: TerminalInput.Input ) -> Bool {
+    keyHandler.handle ( input )
+  }
 }
 
 // Overlays that maintain internal caches need a hook so the manager can force a

@@ -19,9 +19,10 @@ public final class TerminalApp {
   private let menuBar      : MenuBar
   private let context      : AppContext
   private var cursor       : Cursor
-  
-  
+
+
   private var awaitingMenuSelection: Bool
+  private let keyHandler            : KeyHandler
   
   public init ( menuBar: MenuBar, statusBar: StatusBar, context: AppContext, window: WindowChanges = WindowChanges() )
   {
@@ -31,6 +32,7 @@ public final class TerminalApp {
     self.statusBar              = statusBar
     self.menuBar                = menuBar
     self.awaitingMenuSelection  = false
+    self.keyHandler             = KeyHandler()
 
     
     
@@ -61,7 +63,9 @@ public final class TerminalApp {
         case .success(let input) : process( input )
       }
     }
-    
+
+    configureKeyHandler()
+
     // redirect stderr to null so we dont spam log/error messages to the terminal
     freopen("/dev/null", "w", stderr)
     
@@ -93,19 +97,10 @@ public final class TerminalApp {
       return
     }
 
-    // Catch option-key menu shortcuts (sent as ESC-prefixed characters) and
-    // trigger the corresponding menu item action.
-
+    // The shared key handler swallows menu shortcuts and terminal responses so
+    // callers only need to register the interactions they care about.
     for input in inputs {
-      switch input {
-
-        case .key      ( let key      ) : awaitingMenuSelection = (key == .ESC)
-        case .ascii    ( let data     ) : handleMenuSelectionPayload(data)
-        case .unicode  ( let data     ) : handleMenuSelectionPayload(data)
-        case .response ( let response ) : process ( response )
-
-        default : break
-      }
+      _ = keyHandler.handle ( input )
     }
 
   }
@@ -160,15 +155,37 @@ public final class TerminalApp {
 
 
 
-  private func handleMenuSelectionPayload(_ data: Data) {
-    
-    guard awaitingMenuSelection else { return }
-    awaitingMenuSelection = false
-    
-    if let char = String(data: data, encoding: .utf8)?.first {
-      menuBar.locateMenuItem(select: char)?.performAction()
+  private func configureKeyHandler() {
+
+    keyHandler.registerControl ( .ESC ) { [weak self] in
+      self?.awaitingMenuSelection = true
+      return true
     }
-    
+
+    keyHandler.registerASCII { [weak self] data in
+      self?.handleMenuSelectionPayload ( data ) ?? false
+    }
+
+    keyHandler.registerUnicode { [weak self] data in
+      self?.handleMenuSelectionPayload ( data ) ?? false
+    }
+
+    keyHandler.registerResponse { [weak self] response in
+      self?.process ( response )
+      return true
+    }
+  }
+
+  @discardableResult
+  private func handleMenuSelectionPayload ( _ data: Data ) -> Bool {
+
+    guard awaitingMenuSelection else { return false }
+    awaitingMenuSelection = false
+
+    guard let char = String ( data: data, encoding: .utf8 )?.first else { return false }
+
+    menuBar.locateMenuItem ( select: char )?.performAction()
+    return true
   }
 
 
