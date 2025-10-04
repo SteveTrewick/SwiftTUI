@@ -907,16 +907,12 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
         onUpdate?( false )
         return true
 
+      
       case .key(let key) :
         switch key {
-          case .RETURN :
-            activateSelection()
-            return true
-          case .ESC    :
-            dismiss()
-            return true
-          default      :
-            return false
+          case .RETURN : activateSelection(); return true
+          case .ESC    : dismiss()          ; return true
+          default      :                      return false
         }
 
       case .ascii(let data) :
@@ -926,8 +922,7 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
         }
         return false
 
-      default     :
-        return false
+      default     :return false
     }
   }
 
@@ -970,9 +965,9 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
     let bottom = top  + height - 1
     let right  = left + width  - 1
 
-    guard top    >= 1 else { return nil }
-    guard left   >= 1 else { return nil }
-    guard bottom <= rows else { return nil }
+    guard top    >= 1       else { return nil }
+    guard left   >= 1       else { return nil }
+    guard bottom <= rows    else { return nil }
     guard right  <= columns else { return nil }
 
     return BoxBounds ( row: top, col: left, width: width, height: height )
