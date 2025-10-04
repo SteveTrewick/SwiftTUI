@@ -1,0 +1,84 @@
+
+import Foundation
+import SwiftTUI
+
+
+class KeyHandler {
+  
+  enum Bytes {
+    case ascii   (Data)
+    case unicode (Data)
+  }
+  
+  typealias ControlInputHandler = [ TerminalInput.Input : () -> Bool ]
+  typealias BytesInputHandler   = (Bytes) -> Bool
+  typealias GlobalInputHandler  = ControlInputHandler
+  
+  struct HandlerTableEntry {
+    let control : ControlInputHandler?
+    let bytes   : BytesInputHandler?
+    let global  : GlobalInputHandler?
+  }
+  
+  var handlers : [HandlerTableEntry] = []
+  
+  @discardableResult
+  func handle ( _ input: TerminalInput.Input ) -> Bool {
+    
+    // use the top of the stack (this will break some menu handling, if we aren't careful in TerminalApp
+    // but if we stack overlays, only the top one should get the keys
+    guard let handler = handlers.last else { return false }
+    
+    
+    switch input {
+      case .key, .cursor :
+        // check the registerd control handler, if one exists
+        if let action = handler.control?[input] { return action() }
+        // try the global input hanlder
+        if let action = handler.global?[input]  { return action() }
+      
+      // see if we have a handler registered for bytes (likely non control key presses)
+      case .ascii   ( let data ) : if let action = handler.bytes { return action (.ascii  (data)) }
+      case .unicode ( let data ) : if let action = handler.bytes { return action (.unicode(data)) }
+      
+      case .response : return false // we will ignore these, these are for cursor tracking
+    }
+    
+    return false
+  }
+  
+  func pushHandler ( _ handler:  HandlerTableEntry ) {
+    handlers.append( handler )
+  }
+
+  func popHandler() {
+    handlers = handlers.dropLast()
+  }
+  
+}
+
+let keys = KeyHandler()
+
+keys.pushHandler ( KeyHandler.HandlerTableEntry (
+  control : [
+    .cursor  ( .left   ) : { print ("cursor left") ; return true },
+    .cursor  ( .right  ) : { print ("cursor left") ; return true },
+    .key     ( .ESC    ) : { print ("ESC")         ; return true },
+    .key     ( .RETURN ) : { print ("RETURN")      ; return true }
+    // ok, this works nice until we get to ascii/unicode
+  ],
+  
+  // if we want ascii/unicode data. Most overlays do not need this
+  bytes  : { bytes in
+    switch bytes {
+    case .ascii   ( let data ) : print ( String (data: data, encoding: .utf8 ) ?? "error" ); return true
+    case .unicode ( let data ) : print ( String (data: data, encoding: .utf8 ) ?? "error" ); return true
+    }
+  },
+  
+  // if we want to handle all the input ourself
+  global : nil
+
+))
+
+
