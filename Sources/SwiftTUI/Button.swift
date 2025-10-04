@@ -33,6 +33,12 @@ public final class Button: Renderable, OverlayInputHandling {
   public var usesDimHighlight  : Bool
   public var isHighlightActive : Bool
 
+  public var minimumWidth: Int { displayText.count }
+
+  private var displayText: String {
+    "[ \(text) ]"
+  }
+  
   public init(
     bounds      : BoxBounds,
     text        : String,
@@ -67,11 +73,7 @@ public final class Button: Renderable, OverlayInputHandling {
     }
   }
 
-  public var minimumWidth: Int { displayText.count }
-
-  private var displayText: String {
-    "[ \(text) ]"
-  }
+ 
 
  
   
