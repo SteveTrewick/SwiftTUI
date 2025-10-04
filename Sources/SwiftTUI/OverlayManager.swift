@@ -258,10 +258,89 @@ public struct MessageBoxButton {
 
 final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalidating, OverlayBoundsReporting {
 
+  // Button interactions are routed through a small helper so we can reuse the
+  // lightweight renderer while keeping keystroke handling close to the overlay.
+  // This avoids teaching `Button` about highlight state or activation flows and
+  // keeps it focused on painting a labelled control.
+  final class ButtonController {
+
+    private let configuration   : MessageBoxButton
+    private let style           : ElementStyle
+    private let highlightPalette: (foreground: ANSIForecolor, background: ANSIBackcolor)
+    private let context         : AppContext
+    private let onDismiss       : () -> Void
+    private let button          : Button
+    private var isArmed         : Bool
+
+    init(
+      configuration   : MessageBoxButton,
+      style           : ElementStyle,
+      highlightPalette: (foreground: ANSIForecolor, background: ANSIBackcolor),
+      context         : AppContext,
+      onDismiss       : @escaping () -> Void
+    ) {
+
+      self.configuration    = configuration
+      self.style            = style
+      self.highlightPalette = highlightPalette
+      self.context          = context
+      self.onDismiss        = onDismiss
+      self.button           = Button (
+        bounds: BoxBounds ( row: 1, col: 1, width: MessageBoxOverlay.buttonWidth(for: configuration.text), height: 1 ),
+        text  : configuration.text,
+        style : style
+      )
+      self.isArmed          = true
+    }
+
+    var minimumWidth: Int { button.minimumWidth }
+
+    func render ( in size: winsize, bounds: BoxBounds, isHighlighted: Bool ) -> [AnsiSequence]? {
+
+      button.bounds = bounds
+
+      let foreground = isHighlighted ? highlightPalette.foreground : style.foreground
+      let background = isHighlighted ? highlightPalette.background : style.background
+
+      return button.render ( in: size, foreground: foreground, background: background )
+    }
+
+    func handle ( _ input: TerminalInput.Input ) -> Bool {
+
+      guard isArmed else { return false }
+
+      switch input {
+
+        case .key(let key) where key == configuration.activationKey:
+          activate()
+          return true
+
+        case .ascii(let data) where configuration.activationKey == .RETURN:
+          if data.contains(0x0d) {
+            activate()
+            return true
+          }
+          return false
+
+        default:
+          return false
+      }
+    }
+
+    private func activate() {
+
+      guard isArmed else { return }
+      isArmed = false
+
+      configuration.handler?(context)
+      onDismiss()
+    }
+  }
+
   private let messageBox        : MessageBox
   private let context           : AppContext
   private let onDismiss         : () -> Void
-  private var buttons           : [Button]
+  private var buttonControllers : [ButtonController]
   private var activeIndex       : Int
   private let onUpdate          : ((Bool) -> Void)?
   private var cachedLayout      : MessageBox.Layout?
@@ -341,27 +420,17 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     // visually consistent with the rest of the overlay.
     let highlightPalette = ElementStyle.highlightPalette ( for: style )
 
-    self.buttons = buttons.enumerated().map { index, config in
-      let action = config.handler
-      return Button (
-        bounds             : BoxBounds(row: row ?? 1, col: col ?? 1, width: config.text.count + 4, height: 1),
-        text               : config.text,
-        style              : style,
-        activationKey      : config.activationKey,
-        onActivate         : {
-          // Carry the current application context into button handlers so they can
-          // present follow-up UI or interact with I/O pipelines safely.
-          action?(context)
-          onDismiss()
-        },
-        highlightForeground: highlightPalette.foreground,
-        highlightBackground: highlightPalette.background,
-        usesDimHighlight    : true,
-        isHighlightActive   : index == 0
+    self.buttonControllers = buttons.map { config in
+      ButtonController(
+        configuration   : config,
+        style           : style,
+        highlightPalette: highlightPalette,
+        context         : context,
+        onDismiss       : onDismiss
       )
     }
 
-    self.dirtyButtonIndices = Set(self.buttons.indices)
+    self.dirtyButtonIndices = Set(self.buttonControllers.indices)
   }
 
   func invalidateForFullRedraw() {
@@ -411,15 +480,15 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
       needsFullRedraw = false
     }
 
-    guard !buttons.isEmpty else {
+    guard !buttonControllers.isEmpty else {
       didRenderLastPass = true
       return TUIElement.render ( elements, in: size )
     }
 
     let bounds               = layout.bounds
     let interiorWidth        = bounds.width - 2
-    let minimumButtonWidths  = buttons.reduce(0) { $0 + $1.minimumWidth }
-    let gapCount             = max(buttons.count - 1, 0)
+    let minimumButtonWidths  = buttonControllers.reduce(0) { $0 + $1.minimumWidth }
+    let gapCount             = max(buttonControllers.count - 1, 0)
 
     guard minimumButtonWidths <= interiorWidth else {
       // Logging the refusal makes it obvious why callers lose their buttons; the guard only fires when
@@ -480,27 +549,20 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
     // which they did, so their attribs appear to be sane
     // this is going to be width or position computation, which sucks, because codex wrote them
     // and its code is all fugly
-    //for (index, button) in buttons.dropFirst().enumerated() {
-    for (index, button) in buttons.enumerated() {
-      button.isHighlightActive = (index == activeIndex)
-      
-      //DEBUG: observing these, they look sane but buttons dissapear when the height increses, wtf?
-//      log("button row   \(buttonRow)")
-//      log("button col   \(currentCol)")
-//      log("button width \(button.minimumWidth)")
-     
-      button.bounds = BoxBounds(
+    for (index, controller) in buttonControllers.enumerated() {
+
+      let buttonBounds = BoxBounds(
         row   : buttonRow,
         col   : currentCol,
-        width : button.minimumWidth,
+        width : controller.minimumWidth,
         height: 1
       )
 
-      if dirtyButtonIndices.contains(index), let buttonSequences = button.render(in: size) {
-        elements.append ( TUIElement ( bounds: button.bounds, sequences: buttonSequences ) )
+      if dirtyButtonIndices.contains(index), let buttonSequences = controller.render ( in: size, bounds: buttonBounds, isHighlighted: index == activeIndex ) {
+        elements.append ( TUIElement ( bounds: buttonBounds, sequences: buttonSequences ) )
       }
 
-      currentCol += button.minimumWidth + spacing
+      currentCol += controller.minimumWidth + spacing
       //log("current col \(currentCol)") // it won't be this
     }
 
@@ -513,7 +575,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
 
   func handle(_ input: TerminalInput.Input) -> Bool {
 
-    guard !buttons.isEmpty else { return false }
+    guard !buttonControllers.isEmpty else { return false }
 
     // The overlay owns left/right navigation so only the focused button sees the
     // activation key. This keeps keyboard handling predictable for callers.
@@ -524,7 +586,7 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
 
         switch key {
           case .left  : activeIndex = max(0, activeIndex - 1)
-          case .right : activeIndex = min(buttons.count - 1, activeIndex + 1)
+          case .right : activeIndex = min(buttonControllers.count - 1, activeIndex + 1)
           default     : break
         }
 
@@ -542,10 +604,10 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
           onDismiss()
           return true
         }
-        return buttons[activeIndex].handle(input)
+        return buttonControllers[activeIndex].handle(input)
 
       default:
-        return buttons[activeIndex].handle(input)
+        return buttonControllers[activeIndex].handle(input)
     }
   }
 
@@ -571,13 +633,13 @@ final class MessageBoxOverlay: Renderable, OverlayInputHandling, OverlayInvalida
   }
 
   private func markButtonsDirty(_ indexes: [Int]) {
-    for index in indexes where buttons.indices.contains(index) {
+    for index in indexes where buttonControllers.indices.contains(index) {
       dirtyButtonIndices.insert(index)
     }
   }
 
   private func markAllButtonsDirty() {
-    dirtyButtonIndices = Set(buttons.indices)
+    dirtyButtonIndices = Set(buttonControllers.indices)
   }
 
   private static func layout(_ layout: MessageBox.Layout, matches cached: MessageBox.Layout?) -> Bool {
