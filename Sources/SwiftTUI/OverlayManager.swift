@@ -1032,20 +1032,8 @@ final class SelectionListOverlay: Renderable, OverlayInputHandling, OverlayInval
       }
     ]
 
-    let bytesHandler: KeyHandler.BytesInputHandler = { [weak self] bytes in
-      guard let overlay = self else { return false }
-
-      switch bytes {
-        case .ascii   ( let data ),
-             .unicode ( let data ) :
-          guard data.contains ( 0x0d ) else { return false }
-          return overlay.activateSelection()
-      }
-    }
-
     keyHandler.pushHandler ( KeyHandler.HandlerTableEntry (
-      control : controlHandlers,
-      bytes   : bytesHandler
+      control : controlHandlers
     ) )
   }
 
