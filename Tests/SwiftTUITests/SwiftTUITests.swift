@@ -167,16 +167,159 @@ final class TerminalInputTranslateTests: XCTestCase {
 
     func testTranslateHandlesTruncatedCursorResponse() {
         let input = TerminalInput()
-        var bytes = Data([0x1b])
-        bytes.append(contentsOf: "[12R".utf8)
+        var decoder = TerminalInput.Decoder(input: input)
 
-        let result = input.translate(bytes: bytes)
+        switch decoder.feed(Data([0x1b])) {
+        case .failure(let trace):
+            XCTFail("Unexpected failure while buffering escape prefix: \(trace)")
+        case .success(let outputs):
+            XCTAssertTrue(outputs.isEmpty)
+        }
 
-        switch result {
-        case .failure:
-            break
-        case .success(let inputs):
-            XCTFail("Expected failure for truncated response, got \(inputs)")
+        switch decoder.feed(Data("[12;4R".utf8)) {
+        case .failure(let trace):
+            XCTFail("Expected buffered response to resolve, saw error: \(trace)")
+        case .success(let outputs):
+            XCTAssertEqual(outputs, [.response(.CURSOR(row: 12, column: 4))])
+        }
+
+        switch decoder.flush() {
+        case .failure(let trace):
+            XCTFail("Decoder should be grounded after response, saw: \(trace)")
+        case .success(let trailing):
+            XCTAssertTrue(trailing.isEmpty)
+        }
+    }
+
+    func testDecoderEmitsTokensAcrossChunkBoundaries() {
+        let input = TerminalInput()
+        var decoder = TerminalInput.Decoder(input: input)
+        var collected: [TerminalInput.Input] = []
+
+        func appendChunk(_ bytes: [UInt8], file: StaticString = #filePath, line: UInt = #line) {
+            switch decoder.feed(Data(bytes)) {
+            case .failure(let trace):
+                XCTFail("Unexpected decoder failure for chunk \(bytes): \(trace)", file: file, line: line)
+            case .success(let outputs):
+                collected.append(contentsOf: outputs)
+            }
+        }
+
+        // Control byte arrives on its own chunk, immediately producing a key token.
+        appendChunk([0x0d])
+
+        // ASCII text accumulates until we explicitly flush the decoder in the ground state.
+        appendChunk([0x41])
+
+        switch decoder.flush() {
+        case .failure(let trace):
+            XCTFail("Flush should release buffered ASCII, saw error: \(trace)")
+        case .success(let trailing):
+            collected.append(contentsOf: trailing)
+        }
+
+        // Cursor response is fragmented across multiple chunks; keep feeding until we see the final byte.
+        appendChunk([0x1b])
+        appendChunk(Array("[12".utf8))
+        appendChunk(Array(";40R".utf8))
+
+        // UTF-8 scalar is sliced into individual bytes to ensure continuation tracking.
+        appendChunk([0xe2])
+        appendChunk([0x82])
+        appendChunk([0xac])
+
+        switch decoder.flush() {
+        case .failure(let trace):
+            XCTFail("Final flush should succeed after complete sequences: \(trace)")
+        case .success(let trailing):
+            collected.append(contentsOf: trailing)
+        }
+
+        let expected: [TerminalInput.Input] = [
+            .key(.RETURN),
+            .ascii(Data([0x41])),
+            .response(.CURSOR(row: 12, column: 40)),
+            .unicode(Data([0xe2, 0x82, 0xac]))
+        ]
+
+        XCTAssertEqual(collected, expected)
+    }
+
+    func testDecoderEmitsMetaSequenceAcrossChunks() {
+        let input = TerminalInput()
+        var decoder = TerminalInput.Decoder(input: input)
+
+        // ESC prefix is delivered first to make sure the decoder buffers it until printable data arrives.
+        switch decoder.feed(Data([0x1b])) {
+        case .failure(let trace):
+            XCTFail("Unexpected failure buffering ESC prefix: \(trace)")
+        case .success(let outputs):
+            XCTAssertTrue(outputs.isEmpty)
+        }
+
+        switch decoder.feed(Data([0x66])) {
+        case .failure(let trace):
+            XCTFail("Meta sequence should resolve when printable suffix arrives: \(trace)")
+        case .success(let outputs):
+            XCTAssertEqual(outputs, [.key(.ESC), .ascii(Data([0x66]))])
+        }
+
+        switch decoder.flush() {
+        case .failure(let trace):
+            XCTFail("Meta sequence should leave decoder grounded, saw: \(trace)")
+        case .success(let trailing):
+            XCTAssertTrue(trailing.isEmpty)
+        }
+    }
+
+    func testDecoderSurfacesMalformedUTF8WithoutDroppingBuffer() {
+        let input = TerminalInput()
+        var decoder = TerminalInput.Decoder(input: input)
+
+        // Start a UTF-8 scalar with a valid lead byte so the decoder tracks the expected length.
+        switch decoder.feed(Data([0xe2])) {
+        case .failure(let trace):
+            XCTFail("Unexpected failure receiving lead byte: \(trace)")
+        case .success(let outputs):
+            XCTAssertTrue(outputs.isEmpty)
+        }
+
+        switch decoder.feed(Data([0x20])) {
+        case .success(let outputs):
+            XCTFail("Invalid continuation byte should not succeed, got: \(outputs)")
+        case .failure(let trace):
+            // Retain the buffered lead byte so diagnostics can recover context.
+            XCTAssertEqual(decoder.unicodeBuffer, Data([0xe2]))
+            XCTAssertTrue(String(describing: trace).contains("invalid utf8 continuation"))
+        }
+    }
+
+    func testDecoderReportsUnterminatedOSCWithoutLosingBufferedText() {
+        let input = TerminalInput()
+        var decoder = TerminalInput.Decoder(input: input)
+
+        // Accumulate printable text so we can ensure it gets emitted before the OSC failure.
+        switch decoder.feed(Data("hi".utf8)) {
+        case .failure(let trace):
+            XCTFail("Unexpected failure buffering text: \(trace)")
+        case .success(let outputs):
+            XCTAssertEqual(outputs, [.unicode(Data("hi".utf8))])
+        }
+
+        switch decoder.feed(Data([0x1b, 0x5d, 0x30])) {
+        case .failure(let trace):
+            XCTFail("OSC prologue should keep streaming, saw: \(trace)")
+        case .success(let outputs):
+            // Subsequent chunk should not emit anything until the OSC terminator arrives.
+            XCTAssertTrue(outputs.isEmpty)
+        }
+
+        switch decoder.flush() {
+        case .success(let outputs):
+            XCTFail("Expected unterminated OSC to fail, saw trailing outputs: \(outputs)")
+        case .failure(let trace):
+            XCTAssertTrue(String(describing: trace).contains("unterminated control sequence"))
+            XCTAssertEqual(decoder.escapeBuffer, Data([0x1b, 0x5d, 0x30]))
         }
     }
 }
