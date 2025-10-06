@@ -117,8 +117,7 @@ final class LineBufferScrollTests: XCTestCase {
 final class TerminalInputPrintableSequenceTests: XCTestCase {
 
     func testTranslateEscFollowedByLowercaseLetterProducesAsciiInput() {
-        let terminalInput = TerminalInput()
-        let result = terminalInput.translate(bytes: Data([0x1B, 0x66]))
+        let result = TerminalInput.translate(bytes: Data([0x1B, 0x66]))
 
         switch result {
         case .success(let inputs):
@@ -140,8 +139,7 @@ final class TerminalInputPrintableSequenceTests: XCTestCase {
     }
 
     func testTranslateEscFollowedByUppercaseLetterProducesAsciiInput() {
-        let terminalInput = TerminalInput()
-        let result = terminalInput.translate(bytes: Data([0x1B, 0x41]))
+        let result = TerminalInput.translate(bytes: Data([0x1B, 0x41]))
 
         switch result {
         case .success(let inputs):
@@ -166,8 +164,8 @@ final class TerminalInputPrintableSequenceTests: XCTestCase {
 final class TerminalInputTranslateTests: XCTestCase {
 
     func testTranslateHandlesTruncatedCursorResponse() {
-        let input = TerminalInput()
-        var decoder = TerminalInput.Decoder(input: input)
+        let context = TerminalInput.ParserContext()
+        let decoder = TerminalInput.Decoder(context: context)
 
         switch decoder.feed(Data([0x1b])) {
         case .failure(let trace):
@@ -192,8 +190,8 @@ final class TerminalInputTranslateTests: XCTestCase {
     }
 
     func testDecoderEmitsTokensAcrossChunkBoundaries() {
-        let input = TerminalInput()
-        var decoder = TerminalInput.Decoder(input: input)
+        let context = TerminalInput.ParserContext()
+        let decoder = TerminalInput.Decoder(context: context)
         var collected: [TerminalInput.Input] = []
 
         func appendChunk(_ bytes: [UInt8], file: StaticString = #filePath, line: UInt = #line) {
@@ -246,8 +244,8 @@ final class TerminalInputTranslateTests: XCTestCase {
     }
 
     func testDecoderEmitsMetaSequenceAcrossChunks() {
-        let input = TerminalInput()
-        var decoder = TerminalInput.Decoder(input: input)
+        let context = TerminalInput.ParserContext()
+        let decoder = TerminalInput.Decoder(context: context)
 
         // ESC prefix is delivered first to make sure the decoder buffers it until printable data arrives.
         switch decoder.feed(Data([0x1b])) {
@@ -273,8 +271,8 @@ final class TerminalInputTranslateTests: XCTestCase {
     }
 
     func testDecoderSurfacesMalformedUTF8WithoutDroppingBuffer() {
-        let input = TerminalInput()
-        var decoder = TerminalInput.Decoder(input: input)
+        let context = TerminalInput.ParserContext()
+        let decoder = TerminalInput.Decoder(context: context)
 
         // Start a UTF-8 scalar with a valid lead byte so the decoder tracks the expected length.
         switch decoder.feed(Data([0xe2])) {
@@ -295,8 +293,8 @@ final class TerminalInputTranslateTests: XCTestCase {
     }
 
     func testDecoderReportsUnterminatedOSCWithoutLosingBufferedText() {
-        let input = TerminalInput()
-        var decoder = TerminalInput.Decoder(input: input)
+        let context = TerminalInput.ParserContext()
+        let decoder = TerminalInput.Decoder(context: context)
 
         // Accumulate printable text so we can ensure it gets emitted before the OSC failure.
         switch decoder.feed(Data("hi".utf8)) {
