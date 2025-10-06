@@ -214,6 +214,40 @@ public struct TerminalInput {
 
   struct Decoder {
 
+    /*
+      Streaming state machine that accepts raw bytes from STDIN and emits high level
+      TerminalInput.Input values. The decoder loops byte-by-byte over each chunk,
+      mutating a small ParserState enum to remember where we are in a potential
+      escape sequence. Ordinary printable ASCII is buffered in textBuffer so we
+      can coalesce long runs before emitting them, while multi-byte UTF-8 code
+      points are staged in unicodeBuffer until their continuation bytes arrive.
+
+      Control flow is intentionally strict:
+        * ground       : default state that accumulates printable bytes and looks for
+                         ESC to begin an in-band control sequence.
+        * escape       : we have consumed ESC and are determining which control
+                         family follows. Depending on the next byte we branch into
+                         CSI, OSC, or a meta (ESC-prefixed UTF-8) sequence.
+        * csi / osc    : parse parameterised responses from the terminal and map
+                         them onto higher level enums. CSI stands for Control
+                         Sequence Introducer (escape + "[") and covers cursor
+                         motion and responses such as "ESC [ 6 n". A readable spec
+                         is available at https://vt100.net/docs/vt510-rm/CSI.html .
+                         OSC means Operating System Command (escape + "]" or
+                         rarely "ESC P"), a family of terminal status commands such
+                         as title changes. The xterm reference lives at
+                         https://invisible-island.net/xterm/ctlseqs/ctlseqs.html .
+        * utf8         : tracks remaining continuation bytes for both plain text
+                         scalars and meta sequences that were introduced by ESC.
+
+      The combination of the state machine and the explicit buffers lets us cope
+      with fragmented reads (common on macOS's tty implementation) without losing
+      information. emitText() flushes any pending ASCII/unicode runs whenever we
+      switch away from ground, keeping ordering deterministic. flush() is provided
+      so callers can surface partially received control sequences as errors if the
+      input stream ends mid-sequence.
+    */
+
 
     enum TextContext {
       case plain
@@ -232,6 +266,17 @@ public struct TerminalInput {
       var sawEscape  : Bool
     }
 
+
+    /*
+      ParserState encodes the active branch of the state machine. CSI (Control
+      Sequence Introducer) is introduced by "ESC [" and allows the terminal to
+      report information like cursor position. OSC (Operating System Command) is
+      introduced by "ESC ]" (or "ESC P" for ST-terminated variants) and lets the
+      terminal send application-level metadata. Both definitions trace back to the
+      DEC VT series; see https://vt100.net/docs/vt510-rm/ and
+      https://invisible-island.net/xterm/ctlseqs/ctlseqs.html for historical and
+      xterm-specific behaviour notes.
+    */
 
     enum ParserState {
       case ground
@@ -257,6 +302,16 @@ public struct TerminalInput {
       self.textBuffer    = Data()
     }
 
+
+    /*
+      Core streaming routine. We walk each incoming byte, advance the state machine,
+      and append any newly completed tokens into the outputs array. The method never
+      emits partial data: printable text is staged in textBuffer until we know that
+      we're leaving ground, and escapeBuffer/unicodeBuffer track in-flight control
+      sequences so the caller either receives a fully decoded Input or an error when
+      the sequence proves invalid. Returning Result keeps the fast path lean while
+      still surfacing malformed UTF-8 or unsupported control messages for diagnosis.
+    */
 
     mutating func feed ( _ chunk: Data ) -> Result<[TerminalInput.Input], Trace> {
 
@@ -431,6 +486,15 @@ public struct TerminalInput {
     }
 
 
+    /*
+      Flush any accumulated ground-state bytes. macOS often delivers long runs of
+      printable characters in multiple reads, so we buffer them until either a control
+      sequence or the caller explicitly asks for a flush. Single ASCII bytes remain
+      tagged as .ascii to keep hot paths allocation-free, while longer runs and UTF-8
+      scalars are surfaced as .unicode so downstream consumers can treat them as text
+      without worrying about fragmentation.
+    */
+
     mutating func emitText ( into outputs: inout [TerminalInput.Input] ) {
 
       guard textBuffer.count > 0 else { return }
@@ -447,6 +511,14 @@ public struct TerminalInput {
       }
     }
 
+
+    /*
+      Force completion when the reader reaches EOF. Any pending printable data gets
+      emitted, but half-parsed control sequences are treated as fatal because they
+      would otherwise leave the state machine stuck in escape or UTF-8 modes. This is
+      particularly helpful for unit tests where we want deterministic failure rather
+      than silent truncation.
+    */
 
     mutating func flush() -> Result<[TerminalInput.Input], Trace> {
 
@@ -477,10 +549,22 @@ public struct TerminalInput {
     }
 
 
+    /*
+      CSI sequences terminate when the final byte falls in the 0x40...0x7e range per
+      the VT510 manual. Everything before that is parameter bytes that we keep
+      buffering.
+    */
+
     func isFinalCSI(_ byte: UInt8) -> Bool {
       byte >= 0x40 && byte <= 0x7e
     }
 
+
+    /*
+      Map a UTF-8 lead byte to the number of continuation bytes we should expect.
+      The ranges follow RFC 3629 (the modern UTF-8 restriction that caps sequences at
+      4 bytes). Returning nil lets the caller flag illegal encodings early.
+    */
 
     func continuationLength(for byte: UInt8) -> Int? {
       switch byte {
@@ -491,6 +575,11 @@ public struct TerminalInput {
       }
     }
 
+
+    /*
+      Simple helper for UTF-8 validation. Continuation bytes always carry the 10xxxxxx
+      bit pattern; anything else indicates a broken multibyte scalar.
+    */
 
     func isContinuation(_ byte: UInt8) -> Bool {
       (byte & 0xc0) == 0x80
