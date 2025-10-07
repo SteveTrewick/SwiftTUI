@@ -219,10 +219,22 @@ public final class TerminalApp {
 
   
   public func stop() {
+    // The shutdown path mirrors the init sequence so raw input, hidden cursors
+    // and the alternate buffer are unwound in the reverse order before we drop
+    // the window tracking hooks and hand control back to the shell.
+    context.input.unmakeRaw()
+
+    context.output.send (
+      .resetFGBG,
+      .showCursor,
+      .normBuffer,
+      .moveCursor(row: 1, col: 1)
+    )
+
     window.untrack()
   }
-  
+
   deinit {
-    window.untrack()
+    stop()
   }
 }
